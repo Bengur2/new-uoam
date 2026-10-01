@@ -27,7 +27,9 @@ has a detailed section further down - this list is just the map of what exists.
 | Map chat shown inside the UO client (UOAssist API via Orion Assistant) | done, verified live | "Map chat inside the UO client" |
 | In-game commands `-c`, `-c name>text`, `-panic`, `-unpanic` (UOAssist ADD_CMD, bridge process) | done, verified with simulated OA input; server deployed 2026-09-25 (live test 20/20) | "In-game commands" |
 | Track reports `-t name, name` + `TrackPlayers.oajs` + track map window | done 2026-09-30, loopback 11/11 + real app with a local relay; relay deployed 2026-09-30 (live 6/6); script's first live run pending | "Track reports (-t)" |
-| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; repo public since 2026-10-01, **v1.0.2 released** with installer (live feed, zip and setup verified) | "Self-update (player package)" + `docs/RELEASE.md` |
+| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; latest release **v1.0.3** (live feed, zip and setup verified) | "Self-update (player package)" + `docs/RELEASE.md` |
+| Installer `NewUOAM-Setup.exe` (Inno Setup, per-user, uninstall keeps player files) + website https://bengur2.github.io/new-uoam/ (`docs/index.html`, GitHub Pages) | done 2026-10-01, both live | "Self-update (player package)" → "Installer + web" |
+| Public repo `Bengur2/new-uoam` (one clean commit, no account names/emails; old history in private `new-uoam-private`), commits as `168770972+Bengur2@users.noreply.github.com` | since 2026-10-01 | `HANDOVER.md` 6/6b |
 
 Open items: see "Watch list" and "Known follow-up work" at the bottom. **On a new machine, read `HANDOVER.md`
 first** (Czech handover written 2026-09-24 when the user moved to a second PC). It has the

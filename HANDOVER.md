@@ -101,17 +101,42 @@ klient).
 - Sestavení: `dotnet build NewUOAM.slnx -c Debug`, spuštění: `dotnet run --project src/NewUOAM.App`
   nebo rovnou `src\NewUOAM.App\bin\Debug\net8.0-windows\NewUOAM.App.exe` (po sestavení; v gitu
   sestavené soubory nejsou).
-- **Zdrojáky jsou na GitHubu** (soukromé repo `new-uoam`, od 25. 9.): na novém PC stačí
-  `git clone` a build. V repu záměrně **není** SSH klíč, admin heslo, `publish/` ani `_claude_memory/`.
+- **Zdrojáky jsou na GitHubu**: od 1. 10. 2026 **veřejné** repo `Bengur2/new-uoam` (hráči vidí, že
+  mapa nic nesleduje). Historie začíná jedním čistým commitem bez jmen účtů a e-mailu. Původní
+  historie (soukromá, s e-mailem) zůstala v archivu `Bengur2/new-uoam-private`. Na novém PC stačí
+  `git clone https://github.com/Bengur2/new-uoam` a build. V repu záměrně **není** SSH klíč,
+  podpisový klíč, admin heslo, `publish/` ani `_claude_memory/`. Commituj s anonymní adresou:
+  `git config user.email "168770972+Bengur2@users.noreply.github.com"` (nastaveno pro tohle repo).
 - Po prvním spuštění vyplň: složku klienta UO → „Načíst mapu“, složku markerů, zobrazované jméno,
   barvu, heslo místnosti. **Nastavení se teď už pamatuje** (byla chyba, která ho při každém startu
   mazala — opraveno 23. 9.). Ukládá se do `%LocalAppData%\NewUOAM\settings.json` na každém PC zvlášť.
 - Barevné mapy se na novém PC poprvé předpočítají (desítky sekund), pak se berou z cache.
 
+## 6b. Mapa pro ostatní hráče (od 1. 10. 2026)
+
+- **Web:** https://bengur2.github.io/new-uoam/ (popis, instalace, ovládání, příkazy, soukromí).
+  Zdroj je `docs/index.html` + `docs/img/`. GitHub Pages ho při každém pushi na `main` samy
+  aktualizují.
+- **Instalátor:** `NewUOAM-Setup.exe`, vždy nejnovější na
+  https://github.com/Bengur2/new-uoam/releases/latest/download/NewUOAM-Setup.exe. Instaluje jen pro
+  daný účet do `%LocalAppData%\Programs\NewUOAM`. Odinstalace maže jen soubory aplikace, markery a
+  nastavení zůstanou.
+- **Automatické aktualizace:** mapa při startu nabídne novou verzi z GitHub Releases (podepsanou
+  `update-signing.key`).
+- **Vydání nové verze:** zvýšit `<Version>` v `src/NewUOAM.App/NewUOAM.App.csproj`, commit, push, pak
+  `tools\Release\release.ps1 -NotesFile poznamky.txt -Publish`. Podrobně `docs/RELEASE.md`. Na PC
+  musí být Inno Setup (`winget install JRSoftware.InnoSetup --scope user`).
+- **Místnosti:** hráči si je zakládají sami (Online > Připojit k mapě > Založit novou místnost…,
+  heslo vygeneruje server). Admin… ukáže všechny místnosti, umí je hromadně mazat a vypnout
+  zakládání. Nepoužívané hráčské místnosti se po 3 měsících smažou samy.
+- Poslední vydaná verze: **1.0.3** (1. 10. 2026). Tvoje instalace pro testy je v
+  `%LocalAppData%\Programs\NewUOAM` (zástupce „new UOAM“ na ploše).
+
 ## 7. Relay server (běží, není potřeba nic dělat)
 
 - `89.168.122.175:27980` UDP, Oracle Cloud Always Free, Ubuntu, služba `uoam-relay` (systemd).
-- Nasazená verze je aktuální (obsahuje vše z kap. 3). Postup nasazení nové verze: `CLAUDE.md`,
+- Nasazená verze je aktuální (naposledy 1. 10. 2026: zakládání místností hráči a nový admin). Na VM
+  zůstala záloha `NewUOAM.RelayServer.prev` a `rooms.json.bak-20261001`. Postup nasazení nové verze: `CLAUDE.md`,
   sekce „Deployed relay instance“ (publish s **lomítky** `publish/relay`, upload pod dočasným
   jménem, `mv`, restart služby).
 - **SSH klíč** `ssh-key-2026-09-22.key`: na hlavním PC v `C:\Users\<uživatel>\Downloads\`, na
