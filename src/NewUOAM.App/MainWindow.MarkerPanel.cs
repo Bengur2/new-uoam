@@ -183,6 +183,8 @@ public partial class MainWindow
         public bool NameFromAllCaps;
         public required MarkerSection Section;
         public ImageSource? Icon;
+        /// <summary>Set for one of your own categories (MainWindow.MarkerCategories.cs).</summary>
+        public string? CustomName;
         public readonly List<LoadedMarker> Markers = new();
         public bool DefaultVisible;
         public bool Expanded;
@@ -207,13 +209,6 @@ public partial class MainWindow
     private static bool IsSavedSharedFile(string path) =>
         string.Equals(System.IO.Path.GetFileName(path), SharedMarkersFileName, StringComparison.OrdinalIgnoreCase);
 
-    private static string MarkerCategoryKey(LoadedMarker marker)
-    {
-        string key = NormalizeIconName(marker.Entry.IconName ?? "");
-        if (key.Length == 0) key = FallbackMarkerIconName;
-        return IsSavedSharedFile(marker.FilePath) ? SavedCategoryKeyPrefix + key : key;
-    }
-
     private bool IsMarkerCategoryVisible(string key) =>
         _markerCategoryVisible.TryGetValue(key, out bool chosen) ? chosen
         : !_markerCategories.TryGetValue(key, out var category) || category.DefaultVisible;
@@ -232,15 +227,15 @@ public partial class MainWindow
         foreach (var marker in _markers)
         {
             _localMarkerKeys.Add((marker.Entry.X, marker.Entry.Y, marker.Entry.MapIndex, marker.Entry.Name));
-            string key = MarkerCategoryKey(marker);
-            string name = CategoryDisplayName(marker.Entry.IconName);
+            var described = DescribeMarkerCategory(marker);
+            string key = (IsSavedSharedFile(marker.FilePath) ? SavedCategoryKeyPrefix : "") + described.Key;
             if (_markerCategories.TryGetValue(key, out var category))
             {
                 // Files spell a type loosely; prefer a spelling that isn't all capitals ("TOWN"
                 // from a label made before 2026-09-29 vs. "town" elsewhere).
-                if (category.NameFromAllCaps && !IsAllCaps(marker.Entry.IconName ?? ""))
+                if (category.NameFromAllCaps && !described.NameAllCaps)
                 {
-                    category.Name = name;
+                    category.Name = described.Name;
                     category.NameFromAllCaps = false;
                 }
             }
@@ -249,10 +244,11 @@ public partial class MainWindow
                 category = new MarkerCategory
                 {
                     Key = key,
-                    Name = name,
-                    NameFromAllCaps = IsAllCaps(marker.Entry.IconName ?? ""),
+                    Name = described.Name,
+                    NameFromAllCaps = described.NameAllCaps,
                     Section = IsSavedSharedFile(marker.FilePath) ? MarkerSection.Saved : MarkerSection.Own,
-                    Icon = GetMarkerIcon(marker.Entry.IconName),
+                    Icon = described.Icon,
+                    CustomName = described.CustomName,
                     Expanded = expanded.Contains(key),
                 };
                 _markerCategories[key] = category;
@@ -451,10 +447,11 @@ public partial class MainWindow
             MarkerSectionRow { Section: MarkerSection.Own } => BuildUnshareAllMenuItems(),
             MarkerSectionRow { Section: MarkerSection.Saved } =>
                 BuildMoveToOwnMenuItems(_markers.Where(m => IsSavedSharedFile(m.FilePath)).ToList(), Loc.T("Ctx_MoveAllToOwn")),
-            MarkerCategoryRow category => WithSeparator(
+            MarkerCategoryRow category => WithSeparator(WithSeparator(
                 BuildShareMenuItems(CategoryMarkersOnFacet(category.Key), category.Name),
                 BuildMoveToOwnMenuItems(_markerCategories.TryGetValue(category.Key, out var c) ? c.Markers : [],
                     Loc.F("Ctx_MoveCategoryToOwn", category.Name))),
+                BuildCategoryRowMenuItems(category)),
             SharedOwnerRow owner => BuildSaveSharedMenuItems(owner.Owner, _sharedMarks.GetValueOrDefault(owner.Owner) ?? [], Loc.F("Ctx_SaveAllFrom", owner.Owner)),
             SharedMarkRow shared => BuildSaveSharedMenuItems(shared.Owner, [shared.Mark], Loc.T("Ctx_SaveToSaved")),
             _ => [],
@@ -592,6 +589,7 @@ public partial class MainWindow
 
                 if (!MarkerFileStore.Replace(marker.FilePath, e, null)) notFound++;
                 int index = _markers.IndexOf(marker);
+                if (copy is not null) CarryMarkerCategory(marker, copy, null);
                 if (index >= 0 && copy is not null) _markers[index] = copy;
                 else if (index >= 0) _markers.RemoveAt(index);
                 else if (copy is not null) _markers.Add(copy);

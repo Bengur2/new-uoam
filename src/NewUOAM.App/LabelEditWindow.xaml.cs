@@ -13,7 +13,8 @@ public partial class LabelEditWindow : Window
     public sealed record LandItem(int Index, string Name, int WidthTiles, int HeightTiles);
     public sealed record FileItem(string Path, string Display);
 
-    public sealed record Values(string Name, string IconName, int X, int Y, int MapIndex, string FilePath);
+    /// <param name="Category">One of your own marker categories, "" = by icon.</param>
+    public sealed record Values(string Name, string IconName, int X, int Y, int MapIndex, string FilePath, string Category = "");
 
     private const string DefaultIconName = "POINT";
 
@@ -29,7 +30,7 @@ public partial class LabelEditWindow : Window
 
     public LabelEditWindow(Values initial, IReadOnlyList<LandItem> lands, IReadOnlyList<FileItem> files,
                            string iconsDirectory, Func<string, BitmapImage?> loadIcon, Func<string, string> normalizeIconName,
-                           Func<string, string> iconSpelling)
+                           Func<string, string> iconSpelling, IReadOnlyList<string> categories)
     {
         InitializeComponent();
         _normalizeIconName = normalizeIconName;
@@ -68,6 +69,9 @@ public partial class LabelEditWindow : Window
         LandComboBox.ItemsSource = lands;
         LandComboBox.SelectedItem = lands.FirstOrDefault(l => l.Index == initial.MapIndex) ?? lands.FirstOrDefault();
 
+        CategoryComboBox.ItemsSource = categories;
+        CategoryComboBox.Text = initial.Category;
+
         FileComboBox.ItemsSource = files;
         FileComboBox.SelectedItem = files.FirstOrDefault(f => f.Path.Equals(initial.FilePath, StringComparison.OrdinalIgnoreCase)) ?? files.FirstOrDefault();
 
@@ -93,6 +97,8 @@ public partial class LabelEditWindow : Window
         else if (x < 0 || y < 0 || x >= land.WidthTiles || y >= land.HeightTiles)
             error = $"Pozice je mimo {land.Name} (0-{land.WidthTiles - 1}, 0-{land.HeightTiles - 1}).";
         else if (file is null) error = "Vyber soubor.";
+        else if (CategoryComboBox.Text.Trim() is { } category && (category.Length > 40 || category.Any(char.IsControl)))
+            error = "Kategorie může mít nejvýš 40 znaků.";
 
         if (error is not null)
         {
@@ -107,7 +113,7 @@ public partial class LabelEditWindow : Window
         else
             icon = _iconSpelling(icon);
 
-        Result = new Values(name, icon, x, y, land!.Index, file!.Path);
+        Result = new Values(name, icon, x, y, land!.Index, file!.Path, CategoryComboBox.Text.Trim());
         DialogResult = true;
     }
 }

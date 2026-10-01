@@ -1657,6 +1657,7 @@ public partial class MainWindow : Window
             {
                 _markers.Clear();
                 _markers.AddRange(loaded);
+                LoadCategoryStore(dir);
                 BuildMarkerViews();
                 Log($"Načteno {_markers.Count} markerů z {fileCount} souborů" + (errorCount > 0 ? $" ({errorCount} se nepodařilo přečíst)." : "."));
                 SaveSettings();
@@ -2723,7 +2724,9 @@ public partial class MainWindow : Window
         }
 
         _lastLabelFile = result.FilePath;
-        _markers.Add(new LoadedMarker(entry, result.FilePath));
+        var added = new LoadedMarker(entry, result.FilePath);
+        _markers.Add(added);
+        if (result.Category.Length > 0) CarryMarkerCategory(added, added, result.Category);
         AfterMarkersChanged($"Label \"{entry.Name}\" přidán na {entry.X},{entry.Y} ({System.IO.Path.GetFileName(result.FilePath)}).");
     }
 
@@ -2748,6 +2751,7 @@ public partial class MainWindow : Window
             foreach (var item in shareItems) menu.Items.Add(item);
         }
         menu.Items.Add(new Separator());
+        menu.Items.Add(BuildMarkerCategoryMenu(marker));
         menu.Items.Add(edit);
         menu.Items.Add(delete);
         menu.IsOpen = true;
@@ -2757,7 +2761,8 @@ public partial class MainWindow : Window
     {
         var e = marker.Entry;
         string dir = System.IO.Path.GetDirectoryName(marker.FilePath) ?? EnsureMarkersDirectory();
-        var result = ShowLabelDialog(new LabelEditWindow.Values(e.Name, e.IconName ?? "", e.X, e.Y, e.MapIndex, marker.FilePath), dir);
+        string shownCategory = AssignedCustomCategory(marker);
+        var result = ShowLabelDialog(new LabelEditWindow.Values(e.Name, e.IconName ?? "", e.X, e.Y, e.MapIndex, marker.FilePath, shownCategory), dir);
         if (result is null) return;
 
         // Fields the dialog doesn't show (visibility flag, CSV color/zoom) are kept as they were.
@@ -2786,6 +2791,9 @@ public partial class MainWindow : Window
         int index = _markers.IndexOf(marker);
         var replacement = new LoadedMarker(updated, result.FilePath);
         if (index >= 0) _markers[index] = replacement; else _markers.Add(replacement);
+        // Its category goes with it (an unchanged Category field keeps whatever it was in).
+        CarryMarkerCategory(marker, replacement,
+            string.Equals(result.Category, shownCategory, StringComparison.CurrentCultureIgnoreCase) ? null : result.Category);
         AfterMarkersChanged($"Label \"{updated.Name}\" upraven.");
     }
 
@@ -2807,6 +2815,7 @@ public partial class MainWindow : Window
         }
 
         _markers.Remove(marker);
+        ForgetMarkerCategory(marker);
         AfterMarkersChanged($"Label \"{marker.Entry.Name}\" smazán ze souboru {file}.");
     }
 
@@ -2847,7 +2856,8 @@ public partial class MainWindow : Window
             lands.AddRange(FacetInfo.Known.Values.OrderBy(f => f.Index).Select(f => new LabelEditWindow.LandItem(f.Index, f.Name, f.WidthTiles, f.HeightTiles)));
 
         var files = MarkerFilesIn(dir, initial.FilePath);
-        var dialog = new LabelEditWindow(initial, lands, files, MarkerIconsDirectory, GetMarkerIcon, NormalizeIconName, IconSpelling) { Owner = this };
+        var dialog = new LabelEditWindow(initial, lands, files, MarkerIconsDirectory, GetMarkerIcon, NormalizeIconName, IconSpelling,
+            CustomCategoryNames()) { Owner = this };
         return dialog.ShowDialog() == true ? dialog.Result : null;
     }
 

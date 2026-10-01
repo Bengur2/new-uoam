@@ -19,6 +19,7 @@ has a detailed section further down - this list is just the map of what exists.
 | Menu bar (Mapa/Online/Klient dialogs), map-only mode, window placement memory, auto-load of map + markers | done | "Menu bar", "Window placement memory", "Auto-load" |
 | Map views like old UOAM (Normal / X-ray, Show / Hide statics; rules read off old UOAM's own renders) | done 2026-10-01, matches old UOAM's BMPs 100% / 99.9% / 100% | "Map views" |
 | UI language cs / sk / en (Mapa > Jazyk, controls only) | done 2026-10-01, UIA-tested live switching + restart | "UI language" |
+| Own marker categories (group icon types, put single markers in a category; `NewUOAM kategorie.json` next to the marker files) | done 2026-10-02, 20 checks on the real MainWindow; released in v1.0.5 | "Own marker categories" |
 | Marker overlay (UOAM `.map`/`.csv`, 199 icons, hover label) | done | "Marker overlay" |
 | Side panel = marker browser (sections, categories, search, fly-to) | done | "Side panel = marker browser" |
 | Sharing markers with the room (hidden by default at receivers, save to `shared_markers.map`) | done, server deployed 2026-09-29 | "Sharing markers with the room" |
@@ -29,7 +30,7 @@ has a detailed section further down - this list is just the map of what exists.
 | Map chat shown inside the UO client (UOAssist API via Orion Assistant) | done, verified live | "Map chat inside the UO client" |
 | In-game commands `-c`, `-c name>text`, `-panic`, `-unpanic` (UOAssist ADD_CMD, bridge process) | done, verified with simulated OA input; server deployed 2026-09-25 (live test 20/20) | "In-game commands" |
 | Track reports `-t name, name` + `TrackPlayers.oajs` + track map window | done 2026-09-30, loopback 11/11 + real app with a local relay; relay deployed 2026-09-30 (live 6/6); script's first live run pending | "Track reports (-t)" |
-| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; latest release **v1.0.4** (2026-10-01: map views + UI language) | "Self-update (player package)" + `docs/RELEASE.md` |
+| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; latest release **v1.0.5** (2026-10-02: own marker categories) | "Self-update (player package)" + `docs/RELEASE.md` |
 | Installer `NewUOAM-Setup.exe` (Inno Setup, per-user, uninstall keeps player files) + website https://bengur2.github.io/new-uoam/ (`docs/index.html`, GitHub Pages) | done 2026-10-01, both live | "Self-update (player package)" → "Installer + web" |
 | Public repo `Bengur2/new-uoam` (one clean commit, no account names/emails; old history in private `new-uoam-private`), commits as `168770972+Bengur2@users.noreply.github.com` | since 2026-10-01 | `HANDOVER.md` 6/6b |
 
@@ -570,6 +571,38 @@ third section of Mapa > Nastavení.
   user's `DP Dungy.map`/`DP Mesta.map` in `C:\Games\DP\Ultima Online DP` were converted to
   MapIndex 0 (all 434 now on facet 0; the originals with index 1 are the `.bak` files next to
   them). No code change - the app still filters by facet as before.
+
+**Own marker categories (2026-10-02, user's request: e.g. a "Treasures" category for the
+TREASURE_LEVEL1..8 icons, and moving one marker to another category).** Code:
+`MainWindow.MarkerCategories.cs`, `MarkerCategoryStore.cs`, `TextPromptWindow`.
+- **Stored in `NewUOAM kategorie.json` in the markers folder** (user's pick over settings.json: it
+  travels with the marker files). The .map/.csv formats have no category field and old UOAM and
+  Orion read them, so they're never changed. The file holds categories (name + normalized icon
+  types) and per-marker assignments (marker file name, X, Y, map, name -> category name).
+- **A marker's category:** its assignment, else your category holding its icon type, else its
+  icon type as before. Keys: icon type "SHRINE", yours "C:" + name in capitals, "S:" in front for
+  shared_markers.map. An assignment may also name an icon type's category ("Dungeon").
+- **UI:** a marker's menu (map icon or panel row) has "Kategorie ▸" (by icon / yours / icon
+  types / new). An icon type's category row has "Zařadit X do kategorie ▸". Your category's row has
+  rename, delete (confirm) and "Ikony v kategorii ▸" (click = take the icon out). The Edit Label
+  dialog has a Category field (editable; empty = by icon, a new name creates the category).
+- **Bookkeeping:** editing a marker (also renaming or moving it to another file) carries its
+  assignment; deleting it drops it; moving from shared_markers.map carries it. A category left
+  with no icon types and no assignments is removed (it would have no panel row to delete it from).
+  A category that gets markers takes their previous show/hide state (`KeepVisibility`), so
+  regrouping never makes markers appear or vanish. A file that can't be read is logged and never
+  overwritten. Menu headers with names use a TextBlock ("TREASURE_LEVEL1" would lose its "_" as an
+  access key).
+- **Shared markers don't carry categories** (user's pick): a received one falls into place by its
+  icon. Sharing a category would need a protocol change and a relay deploy.
+- **Verified:** context menus can't be opened by UI Automation, and posted right-clicks are dropped
+  by WPF while the real cursor is elsewhere (the user's mouse wasn't touched). So a scratch host
+  (`new App()` without Run, the real `MainWindow` shown off screen, markers from a scratch
+  folder) raised the menu items' Click events and answered the dialogs in code: 20/20 checks
+  (icon into a new category keeps hidden state, second icon, one marker by hand, Edit Label
+  shows/clears/creates a category, rename of a marker carries it, category rename, duplicate name
+  refused, survives a reload, icon taken out, category deleted, marker deleted drops its
+  assignment, marker file untouched). The look of the menus wasn't checked on screen.
 
 **Sharing markers with the room (2026-09-29, user's request)**, in `MainWindow.SharedMarks.cs`
 (app side) and `RelayProtocol` `UOAMK*1` messages (wire side).

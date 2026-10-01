@@ -86,6 +86,26 @@ internal static class UiStrings
         ("Ctx_MoveAllToOwn", "Přesunout vše do Moje markery", "Presunúť všetko do Moje markery", "Move all to My markers"),
         ("Ctx_MoveCategoryToOwn", "Přesunout kategorii {0} do Moje markery", "Presunúť kategóriu {0} do Moje markery", "Move category {0} to My markers"),
 
+        // ---- Your own marker categories (MainWindow.MarkerCategories.cs) ----
+        ("Ctx_Category", "Kategorie", "Kategória", "Category"),
+        ("Ctx_CategoryByIcon", "Podle ikony ({0})", "Podľa ikony ({0})", "By icon ({0})"),
+        ("Ctx_CategoryIconTypes", "Kategorie ikon", "Kategórie ikon", "Icon categories"),
+        ("Ctx_CategoryNew", "Nová kategorie…", "Nová kategória…", "New category…"),
+        ("Ctx_IconToCategory", "Zařadit {0} do kategorie", "Zaradiť {0} do kategórie", "Put {0} in category"),
+        ("Ctx_CategoryRename", "Přejmenovat kategorii…", "Premenovať kategóriu…", "Rename category…"),
+        ("Ctx_CategoryDelete", "Smazat kategorii", "Zmazať kategóriu", "Delete category"),
+        ("Ctx_CategoryIcons", "Ikony v kategorii", "Ikony v kategórii", "Icons in this category"),
+        ("Ctx_CategoryIconRemoveTip", "Kliknutím ikonu z kategorie vyjmeš", "Kliknutím ikonu z kategórie vyberieš", "Click to take the icon out of this category"),
+        ("Dlg_NewCategory", "Nová kategorie", "Nová kategória", "New category"),
+        ("Dlg_RenameCategory", "Přejmenovat kategorii", "Premenovať kategóriu", "Rename category"),
+        ("Dlg_CategoryName", "Název kategorie:", "Názov kategórie:", "Category name:"),
+        ("Dlg_CategoryNameEmpty", "Vyplň název.", "Vyplň názov.", "Enter a name."),
+        ("Dlg_CategoryExists", "Kategorie {0} už existuje.", "Kategória {0} už existuje.", "Category {0} already exists."),
+        ("Dlg_DeleteCategoryConfirm",
+            "Smazat kategorii {0}? Markery v ní se vrátí do kategorií podle svých ikon. Soubory markerů se nezmění.",
+            "Zmazať kategóriu {0}? Markery v nej sa vrátia do kategórií podľa svojich ikon. Súbory markerov sa nezmenia.",
+            "Delete category {0}? Its markers go back to the categories of their icons. Marker files don't change."),
+
         // ---- Mapa > Nastavení ----
         ("Dlg_MapSettings", "Nastavení mapy", "Nastavenia mapy", "Map settings"),
         ("Set_MapFiles", "SOUBORY MAPY (.MUL / .UOP)", "SÚBORY MAPY (.MUL / .UOP)", "MAP FILES (.MUL / .UOP)"),

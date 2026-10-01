@@ -29,6 +29,13 @@
             </ComboBox.ItemTemplate>
         </ComboBox>
 
+        <!-- Not in old UOAM: your own marker categories (MarkerCategoryStore). Empty = the
+             category the icon gives; a new name creates the category. -->
+        <TextBlock Text="Category:" Foreground="White" Margin="0,0,0,2"/>
+        <ComboBox x:Name="CategoryComboBox" IsEditable="True" Padding="4,3" Margin="0,0,0,2"/>
+        <TextBlock Text="(empty = by icon; a new name creates a category)" Foreground="Gray" FontSize="11"
+                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
         <TextBlock Text="Position:" Foreground="White" Margin="0,0,0,2"/>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="X:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
