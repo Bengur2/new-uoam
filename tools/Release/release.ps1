@@ -45,7 +45,9 @@ if ($Publish) {
         $head = (git rev-parse HEAD).Trim()
         $remote = (git rev-parse origin/main).Trim()
         if ($head -ne $remote) { throw 'HEAD is not origin/main - push first (the release is built from the public source).' }
-        & gh release view $tag *> $null
+        # "release not found" goes to stderr, which PowerShell 5.1 turns into a terminating error
+        # under ErrorActionPreference=Stop; run it through cmd so only the exit code counts.
+        cmd /c "gh release view $tag >nul 2>nul"
         if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists - bump <Version> in NewUOAM.App.csproj." }
     } finally { Pop-Location }
 }
