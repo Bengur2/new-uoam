@@ -82,12 +82,21 @@ Run dotnet $packArgs
 $zip = Join-Path $out "NewUOAM-$version-win-x64.zip"
 $feed = Join-Path $out 'update.json'
 
+# Installer for first-time players (installer\NewUOAM.iss, Inno Setup 6). Same files as the zip,
+# including NewUOAM.files, so an installed copy updates itself like an unzipped one.
+Write-Host '== Building the installer'
+$iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+          "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $iscc) { throw 'Inno Setup 6 not found (winget install JRSoftware.InnoSetup --scope user).' }
+Run $iscc @('/Qp', "/DAppVersion=$version", "/DSourceDir=$appDir", "/DOutputDir=$out", (Join-Path $root 'installer\NewUOAM.iss'))
+$setup = Join-Path $out 'NewUOAM-Setup.exe'
+
 # --- release -----------------------------------------------------------------------------------
 if ($Publish) {
     Write-Host "== Creating GitHub release $tag"
     Push-Location $root
     try {
-        Run gh @('release', 'create', $tag, $zip, $feed, '--title', "new UOAM $version", '--notes-file', $notesPath, '--target', $head)
+        Run gh @('release', 'create', $tag, $setup, $zip, $feed, '--title', "new UOAM $version", '--notes-file', $notesPath, '--target', $head)
     } finally { Pop-Location }
     Write-Host "Released $tag. Installed maps will offer it at their next start."
 } else {

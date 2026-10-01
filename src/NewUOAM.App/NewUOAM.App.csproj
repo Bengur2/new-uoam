@@ -27,6 +27,8 @@
     <!-- The released version (Mapa > Zkontrolovat aktualizace compares it with the feed). Bump
          it for every release - see docs/RELEASE.md. -->
     <Version>1.0.1</Version>
+    <!-- Exe, window and installer icon (drawn by tools\Release\make-icon.ps1). -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

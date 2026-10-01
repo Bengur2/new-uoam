@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>new UOAM – živá mapa pro Ultima Online</title>
+<meta name="description" content="Nástupce UO Auto-Map pro OrionUO: mapa z dat tvého klienta, pozice postavy v reálném čase, markery, spoluhráči v místnosti, chat a panika. Zdarma a s otevřeným kódem.">
+<meta property="og:title" content="new UOAM – živá mapa pro Ultima Online">
+<meta property="og:description" content="Pozice postavy, markery a spoluhráči v reálném čase. Nástupce UO Auto-Map pro OrionUO.">
+<meta property="og:image" content="https://bengur2.github.io/new-uoam/img/map.png">
+<link rel="icon" type="image/png" href="img/icon.png">
+<style>
+  :root {
+    --bg: #15181c;
+    --bg-raised: #1d2127;
+    --bg-sunken: #111316;
+    --line: #2c323a;
+    --text: #e6e8eb;
+    --muted: #9aa3ad;
+    --accent: #e0b04a;
+    --accent-ink: #1b1505;
+    --red: #e62020;
+    --link: #8cc4ff;
+    --radius: 10px;
+    --maxw: 1040px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--link); }
+  code, kbd {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .92em;
+    background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px;
+  }
+  code { overflow-wrap: anywhere; }
+  kbd { border-bottom-width: 2px; white-space: nowrap; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(21, 24, 28, .92); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  header.top .wrap { display: flex; align-items: center; gap: 20px; height: 56px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; }
+  .brand img { width: 28px; height: 28px; }
+  nav { display: flex; gap: 18px; margin-left: auto; overflow-x: auto; }
+  nav a { color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  nav a:hover { color: var(--text); }
+
+  .hero { padding-top: 56px; padding-bottom: 40px; }
+  .hero h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.1; margin: 0 0 14px; letter-spacing: -.02em; }
+  .hero p.lead { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: none;
+    padding: 13px 22px; border-radius: var(--radius); font-size: 17px;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn svg { width: 20px; height: 20px; }
+  .cta .meta { color: var(--muted); font-size: 14px; }
+  .cta .meta a { color: var(--muted); }
+  .shot {
+    margin: 40px 0 0; border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--line); background: var(--bg-sunken);
+  }
+  .shot .frame { position: relative; }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot .me {
+    position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3px 0 0 -3px;
+    background: var(--red); box-shadow: 0 0 0 1px #fff;
+  }
+  .shot figcaption { font-size: 13px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line); }
+
+  section { padding: 44px 0; border-top: 1px solid var(--line); }
+  section h2 { font-size: 28px; margin: 0 0 8px; letter-spacing: -.01em; }
+  section > .wrap > p.sub { color: var(--muted); margin: 0 0 26px; max-width: 680px; }
+  h3 { font-size: 18px; margin: 0 0 6px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+  .card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+  .card p { margin: 0; color: var(--muted); }
+
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+  ol.steps > li {
+    counter-increment: s; position: relative; padding: 16px 20px 16px 64px;
+    background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 18px; top: 14px; width: 30px; height: 30px;
+    border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+    display: grid; place-items: center; font-weight: 700;
+  }
+  ol.steps p { margin: 4px 0 0; color: var(--muted); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; }
+  th, td { text-align: left; padding: 11px 16px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  th { background: var(--bg-raised); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  td:first-child { white-space: nowrap; width: 1%; }
+  td { color: var(--text); }
+  td span.note { color: var(--muted); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } nav { display: none; } }
+  .callout {
+    background: var(--bg-raised); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: var(--radius); padding: 14px 18px; color: var(--muted); margin-top: 16px;
+  }
+  .callout strong { color: var(--text); }
+  details { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; }
+  details + details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { color: var(--muted); margin: 10px 0 0; }
+  ul.plain { margin: 0; padding-left: 20px; color: var(--muted); }
+  ul.plain li { margin: 4px 0; }
+  ul.plain strong { color: var(--text); }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="img/icon.png" alt="">new UOAM</a>
+    <nav>
+      <a href="#funkce">Funkce</a>
+      <a href="#instalace">Instalace</a>
+      <a href="#nastaveni">První spuštění</a>
+      <a href="#ovladani">Ovládání</a>
+      <a href="#prikazy">Příkazy ve hře</a>
+      <a href="#soukromi">Soukromí</a>
+      <a href="#potize">Potíže</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>Živá mapa pro Ultima Online</h1>
+    <p class="lead">Nástupce staré UO Auto-Map pro klienta OrionUO. Ukazuje tvou postavu, markery
+      a spoluhráče v reálném čase, přímo z map tvého klienta.</p>
+    <div class="cta">
+      <a class="btn" id="download" href="https://github.com/Bengur2/new-uoam/releases/latest/download/NewUOAM-Setup.exe">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+        Stáhnout instalátor
+      </a>
+      <span class="meta"><span id="release-info">Windows 10/11, 64 bit</span> ·
+        <a href="https://github.com/Bengur2/new-uoam/releases">všechny verze</a> ·
+        <a href="https://github.com/Bengur2/new-uoam">zdrojový kód</a></span>
+    </div>
+    <figure class="shot">
+      <div class="frame">
+        <img src="img/map.png" width="1200" height="640" alt="Výřez mapy kolem Britainu v pohledu otočeném o 45°, s ikonami markerů">
+        <span class="me" title="Tvoje postava"></span>
+      </div>
+      <figcaption>Britain v pohledu otočeném o 45° (jako ve hře), s ikonami markerů. Červený čtvereček je tvoje postava.</figcaption>
+    </figure>
+  </div>
+
+  <section id="funkce">
+    <div class="wrap">
+      <h2>Co umí</h2>
+      <p class="sub">Všechno běží vedle hry. Mapa do klienta nic nezapisuje a nic do něj nevkládá.</p>
+      <div class="grid">
+        <div class="card"><h3>Mapa z tvého klienta</h3><p>Čte soubory mapy (<code>.mul</code> i <code>.uop</code>) a kreslí je stejnými barvami jako radar ve hře, včetně budov a stromů. Pohled otočený o 45° nebo sever nahoru, plynulé posouvání.</p></div>
+        <div class="card"><h3>Pozice postavy sama</h3><p>Sleduje běžící OrionUO bez skriptů a bez tlačítek. Při víc klientech si v menu <b>Klient</b> vybereš, kterou postavu sledovat.</p></div>
+        <div class="card"><h3>Markery</h3><p>Soubory markerů staré UOAM (<code>.map</code>) i <code>.csv</code>, 199 ikon. Panel s hledáním a kategoriemi, vlastní štítky, přelet na marker jedním klikem.</p></div>
+        <div class="card"><h3>Spoluhráči na mapě</h3><p>V místnosti chráněné heslem vidíte jeden druhého, každý ve své barvě. Když je někdo mimo výřez, ukáže ho šipka na okraji mapy.</p></div>
+        <div class="card"><h3>Chat i ve hře</h3><p>Chat místnosti v okně mapy i přímo ve hře (přes Orion Assistant), soukromé zprávy, historie a počítadlo nepřečtených.</p></div>
+        <div class="card"><h3>Panika a sdílený bod</h3><p>Panic! ukáže všem, kde potřebuješ pomoc, i se směrem nad hlavou ve hře. Sdílený marker označí místo, kam běžet. Markery jde sdílet celé místnosti.</p></div>
+        <div class="card"><h3>Tracking</h3><p>Hráče nalezené skillem Tracking pošleš místnosti jedním příkazem. Ostatním se ukáže malá mapa s místem a jmény.</p></div>
+        <div class="card"><h3>Aktualizuje se sama</h3><p>Při spuštění nabídne novou verzi a po potvrzení se sama aktualizuje. Markery a nastavení zůstanou, jak jsou.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="instalace">
+    <div class="wrap">
+      <h2>Instalace</h2>
+      <p class="sub">Nic dalšího není potřeba, .NET je v instalátoru.</p>
+      <ol class="steps">
+        <li><h3>Stáhni instalátor</h3><p><a href="https://github.com/Bengur2/new-uoam/releases/latest/download/NewUOAM-Setup.exe">NewUOAM-Setup.exe</a> (vždy nejnovější verze).</p></li>
+        <li><h3>Spusť ho</h3><p>Windows může napoprvé ukázat „Systém Windows ochránil váš počítač“, protože instalátor není podepsaný drahým certifikátem. Klikni na <b>Další informace</b> a <b>Přesto spustit</b>. Instaluje se jen pro tvůj účet, do <code>%LocalAppData%\Programs\NewUOAM</code>, bez práv správce.</p></li>
+        <li><h3>Spusť mapu</h3><p>Zástupcem <b>new UOAM</b> na ploše nebo v nabídce Start. Mapa se zeptá na oprávnění správce (viz <a href="#potize">proč</a>).</p></li>
+      </ol>
+      <div class="callout">Raději zip bez instalátoru? Na <a href="https://github.com/Bengur2/new-uoam/releases/latest">stránce verze</a> je <code>NewUOAM-…-win-x64.zip</code>. Rozbal ho kamkoli mimo <code>Program Files</code> a spusť <code>NewUOAM.App.exe</code>. Aktualizuje se stejně.</div>
+    </div>
+  </section>
+
+  <section id="nastaveni">
+    <div class="wrap">
+      <h2>První spuštění</h2>
+      <p class="sub">Dvě věci a mapa jede. Nastavení si pamatuje, příště už nic vyplňovat nemusíš.</p>
+      <ol class="steps">
+        <li><h3>Mapa &gt; Nastavení…</h3><p>V části <b>Soubory mapy</b> vyber složku klienta Ultima Online (ta, kde je <code>map0.mul</code> nebo <code>map0LegacyMUL.uop</code>, <code>statics0.mul</code> a <code>radarcol.mul</code>) a klikni na <b>Načíst mapu</b>. Poprvé se mapa předpočítá (desítky sekund), pak se načítá hned.</p></li>
+        <li><h3>Markery (nepovinné)</h3><p>Ve stejném okně vyber složku se soubory markerů <code>.map</code>/<code>.csv</code>. Když ji necháš prázdnou, hledají se ve složce mapy.</p></li>
+        <li><h3>Spusť hru</h3><p>Jakmile se v OrionUO přihlásíš, objeví se na mapě červený čtvereček: tvoje postava.</p></li>
+        <li><h3>Online &gt; Připojit k mapě… (pro hru s ostatními)</h3><p>Adresa serveru je vyplněná. Doplň <b>heslo místnosti</b> (dostaneš ho od správce mapy), případně <b>zobrazované jméno</b> (prázdné = jméno postavy) a <b>barvu</b>. Volba <b>Připojit automaticky při spuštění</b> tě příště připojí sama.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="ovladani">
+    <div class="wrap">
+      <h2>Ovládání</h2>
+      <p class="sub">Mapa se ovládá hlavně myší. Klávesy fungují, když máš kliknuto do mapy.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Co</th><th>Co to udělá</th></tr></thead>
+        <tbody>
+          <tr><td>Kolečko myši</td><td>Přiblížení a oddálení</td></tr>
+          <tr><td>Dvojklik do mapy</td><td>Režim „jen mapa“: bez rámečku a menu, vždy navrchu. Tažením přesuneš okno. Dalším dvojklikem zpět.</td></tr>
+          <tr><td>☰ (vlevo nahoře)</td><td>Panel markerů: hledání, kategorie se zaškrtávátky, klik na marker = přelet k němu</td></tr>
+          <tr><td>Pravé tlačítko na mapě</td><td><b>Track Player</b> (mapa jde za postavou; vypnuto = mapu posouváš tažením), <b>New Label…</b>, <b>Go to location…</b>, <b>Drop or Pickup Marker</b> (bod, ke kterému běžíš, se vzdáleností), <b>Panic!</b> a při připojení i sdílený marker</td></tr>
+          <tr><td>Pravé tlačítko na markeru</td><td>Upravit, smazat, <b>Sdílet s místností</b></td></tr>
+          <tr><td>Šipka na okraji mapy</td><td>Ukazuje k tvé postavě nebo ke spoluhráči mimo výřez. Klik na tvou šipku = zpět k postavě.</td></tr>
+          <tr><td>Psaní do mapy</td><td>Otevře chat místnosti (když jsi připojený) a rovnou do něj píše</td></tr>
+          <tr><td><kbd>Mezerník</kbd> v mapě</td><td>Zapne tvou paniku, nebo vypne paniku, která v místnosti běží</td></tr>
+          <tr><td>Chat</td><td><kbd>Enter</kbd> odešle. Dvojklik do zpráv = malé okno navrchu. 👥 hráči v místnosti se vzdáleností, 🗑 vymaže historii.</td></tr>
+          <tr><td>Menu Klient</td><td>Výběr sledovaného klienta, když jich běží víc</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section id="prikazy">
+    <div class="wrap">
+      <h2>Příkazy ve hře</h2>
+      <p class="sub">Píšou se do hry jako běžná řeč. Do hry se neodešlou, zpracuje je mapa. Potřebují běžící mapu a Orion Assistant.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Příkaz</th><th>Co dělá</th></tr></thead>
+        <tbody>
+          <tr><td><code>-c zpráva</code></td><td>Zpráva do chatu místnosti</td></tr>
+          <tr><td><code>-c jméno&gt;zpráva</code></td><td>Soukromá zpráva. Stačí začátek jména, pokud je jednoznačný.</td></tr>
+          <tr><td><code>-who</code></td><td>Kdo je v místnosti, jak daleko a kterým směrem</td></tr>
+          <tr><td><code>-panic</code> / <code>-unpanic</code></td><td>Zapne / vypne paniku. Ostatním mapa přeletí k tobě, nad hlavou uvidí směr a vzdálenost.</td></tr>
+          <tr><td><code>-t jméno, jméno</code></td><td>Pošle místnosti hráče nalezené Trackingem (s tvou pozicí)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong>Tracking jedním klikem:</strong> skript <a href="https://raw.githubusercontent.com/Bengur2/new-uoam/main/tools/OrionScripts/TrackPlayers.oajs" download>TrackPlayers.oajs</a> použije Tracking, vybere hráče a pošle <code>-t</code> sám. Zkopíruj ho do složky <code>OA</code> u Orion Launcheru a spusť <code>TrackPlayers</code> na záložce Scripts. Je nepovinný.</div>
+    </div>
+  </section>
+
+  <section id="soukromi">
+    <div class="wrap">
+      <h2>Co mapa posílá ven</h2>
+      <p class="sub">Celý kód, včetně serveru, je <a href="https://github.com/Bengur2/new-uoam">veřejný</a>. Tady je to stručně.</p>
+      <div class="two">
+        <div class="card"><h3>Ve tvém počítači</h3><p>Z paměti klienta jen <b>čte</b> pozici tvé postavy. Nic do hry nezapisuje ani nevkládá. Zprávy do hry jdou přes rozhraní, které k tomu Orion Assistant nabízí.</p></div>
+        <div class="card"><h3>Na server</h3><p>Jen když se připojíš do místnosti: jméno, barva, pozice, chat, sdílené markery, panika a tracking. Vidí je jen lidé ve stejné místnosti. Server je drží jen v paměti. Do provozního logu zapíše příchod a odchod (jméno, IP adresa), paniku, sdílený marker a tracking, ale <b>ne obsah chatu ani průběžné pozice</b>.</p></div>
+      </div>
+      <div class="callout">Kromě toho mapa při spuštění jen zkontroluje na GitHubu, jestli je venku nová verze. Aktualizace je podepsaná, takže mapa nepřijme nic, co nepochází od autora.</div>
+    </div>
+  </section>
+
+  <section id="potize">
+    <div class="wrap">
+      <h2>Časté potíže</h2>
+      <details><summary>Proč mapa chce práva správce?</summary><p>OrionUO často běží jako správce, a pak Windows nedovolí číst pozici postavy programu bez těchto práv. Když dotaz odmítneš, mapa poběží, ale pozici takového klienta neuvidí (hlásí „Přístup byl odepřen. Spusť mapu jako správce.“).</p></details>
+      <details><summary>Mapa neukazuje mou postavu</summary><p>Musíš být ve hře přihlášený (ne na přihlašovací obrazovce). Ve stavovém řádku dole uvidíš, co se děje. „neznámá verze…“ znamená novou verzi OrionUO. Mapa se ji pokusí rozpoznat sama, a když to nepůjde, napiš autorovi.</p></details>
+      <details><summary>Mapa je prázdná nebo se nenačte</summary><p>V Mapa &gt; Nastavení je vybraná špatná složka. Musí to být složka klienta, ve které je <code>map0.mul</code> nebo <code>map0LegacyMUL.uop</code> a <code>radarcol.mul</code>.</p></details>
+      <details><summary>Zprávy ani příkazy ve hře nefungují</summary><p>Potřebují Orion Assistant a přihlášenou postavu. Mapa musí běžet. Když zapneš mapu až po spuštění klienta, příkazy se zaregistrují za pár sekund.</p></details>
+      <details><summary>„Nepodařilo se připojit k mapě“</summary><p>Zkontroluj heslo místnosti. Chyba 107 znamená, že stejné jméno už v místnosti někdo používá; nastav si jiné zobrazované jméno.</p></details>
+      <details><summary>Jak mapu odinstaluju?</summary><p>Nastavení Windows &gt; Aplikace &gt; new UOAM. Tvoje nastavení a markery zůstanou v <code>%LocalAppData%\NewUOAM</code> pro případ, že ji nainstaluješ znovu. Chceš-li je smazat, smaž tu složku ručně.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>new UOAM · zdarma, <a href="https://github.com/Bengur2/new-uoam">otevřený kód</a> · <a href="https://github.com/Bengur2/new-uoam/issues">nahlásit chybu</a></span>
+    <span>Neoficiální nástroj. Ultima Online je ochranná známka Electronic Arts.</span>
+  </div>
+</footer>
+
+<script>
+  // Version, date and size of the newest installer; the button works without this too.
+  fetch('https://api.github.com/repos/Bengur2/new-uoam/releases/latest')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(rel => {
+      const setup = (rel.assets || []).find(a => a.name === 'NewUOAM-Setup.exe');
+      const date = new Date(rel.published_at).toLocaleDateString('cs-CZ');
+      const parts = ['Verze ' + rel.tag_name.replace(/^v/, ''), date];
+      if (setup) parts.push(Math.round(setup.size / 1048576) + ' MB');
+      parts.push('Windows 10/11, 64 bit');
+      document.getElementById('release-info').textContent = parts.join(' · ');
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

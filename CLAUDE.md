@@ -27,7 +27,7 @@ has a detailed section further down - this list is just the map of what exists.
 | Map chat shown inside the UO client (UOAssist API via Orion Assistant) | done, verified live | "Map chat inside the UO client" |
 | In-game commands `-c`, `-c name>text`, `-panic`, `-unpanic` (UOAssist ADD_CMD, bridge process) | done, verified with simulated OA input; server deployed 2026-09-25 (live test 20/20) | "In-game commands" |
 | Track reports `-t name, name` + `TrackPlayers.oajs` + track map window | done 2026-09-30, loopback 11/11 + real app with a local relay; relay deployed 2026-09-30 (live 6/6); script's first live run pending | "Track reports (-t)" |
-| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; **no release published yet** (repo still private) | "Self-update (player package)" + `docs/RELEASE.md` |
+| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; repo public since 2026-10-01, **v1.0.1 released** (live feed + zip verified) | "Self-update (player package)" + `docs/RELEASE.md` |
 
 Open items: see "Watch list" and "Known follow-up work" at the bottom. **On a new machine, read `HANDOVER.md`
 first** (Czech handover written 2026-09-24 when the user moved to a second PC). It has the
@@ -1632,7 +1632,8 @@ or before changing `AppSettings`.
   "client exited" in `bridge.log`). `tools/NewUOAM.ReleaseTool pack` writes `NewUOAM.files` (every
   file of the package), zips the folder as `NewUOAM\…` and writes the signed `update.json`.
 - **Version** = `<Version>` in `NewUOAM.App.csproj` (`App.CurrentVersion`, normalized to
-  major.minor.build; shown as a disabled "Verze x.y.z" item in the Mapa menu). Tag `v<version>`.
+  major.minor.build; shown as a disabled "Verze x.y.z" item in the Mapa menu and in the main
+  window's title, "new UOAM x.y.z", plus " (vývoj)" for a build without `NewUOAM.files`). Tag `v<version>`.
 - **Feed.** `UpdateFeed.DefaultFeedUrl` = `…/releases/latest/download/update.json`. GitHub
   redirects it to the newest non-draft, non-prerelease release; no API, no rate limit. It only
   works once the repo is public. `update.json` = `{manifest: base64(JSON), signature: base64}`,
@@ -1660,6 +1661,26 @@ or before changing `AppSettings`.
   added so a declined UAC isn't asked again. The new instance deletes `*.old-update` on a
   background task with retries (0/3/10/30 s), because the old process is still exiting. Leftover
   download dirs older than 1 h are deleted too.
+- **Installer + web (2026-10-01, user's request).** `release.ps1` also builds `NewUOAM-Setup.exe`
+  from `installer/NewUOAM.iss` (Inno Setup 6, installed per-user via winget; Czech UI from its
+  `Czech.isl`) out of the same folder as the zip, `NewUOAM.files` included. Per-user install to
+  `%LocalAppData%\Programs\NewUOAM`, `PrivilegesRequired=lowest` (the self-update must be able to
+  write there), Start-menu shortcut + optional desktop one, `CloseApplications`, post-install launch
+  via `shellexec` (so the app's own UAC relaunch works). `[UninstallDelete]` removes the whole app
+  folder (files a self-update added later, `*.old-update`), never `%LocalAppData%\NewUOAM`. The
+  asset name is version-less, so `releases/latest/download/NewUOAM-Setup.exe` is a stable link.
+  Verified: silent install into a scratch dir (465 files, Start-menu entry, Apps entry "new UOAM
+  1.0.1"), then silent uninstall (folder incl. a planted `.old-update`, shortcut and Apps entry
+  gone, settings untouched). App icon `src/NewUOAM.App/Assets/app.ico` (`ApplicationIcon`; also
+  `docs/img/icon.png`) is drawn by `tools/Release/make-icon.ps1`. Main window title shows the version.
+  The web is `docs/index.html` (single file, Czech: features, install, first run, controls,
+  in-game commands, privacy, FAQ), served by GitHub Pages from `main` `/docs` (`docs/.nojekyll`,
+  so files are served as-is) at https://bengur2.github.io/new-uoam/. No Actions workflow: the gh
+  token has no `workflow` scope, and GitHub refused a push containing one. The download button links to
+  the stable installer URL, and JS shows version/date/size from the GitHub API (works without JS).
+  `docs/img/map.png` is rendered from the DP client data with the app's Rotated45 math + DP
+  marker icons, no player data. Checked in headless Edge at 1280px and in a 390px iframe (headless
+  Edge's own minimum window width makes a direct 390px screenshot misleading).
 - **Testing:** `--update-feed <url>` (App arg) overrides the feed (then any package URL is
   allowed, the signature is still required). `release.ps1 -PackageBaseUrl http://localhost:27999/`
   builds a package for it.
@@ -1674,7 +1695,8 @@ or before changing `AppSettings`.
     folder. No `*.old-update` was left after 15 s, the file list matched 1.0.1, `mine.txt` stayed,
     `settings.json` was unchanged, and the restarted 1.0.1 fetched the feed again without offering
     anything.
-  - **Not yet:** a real GitHub release (repo private until the user decides), and the update of
+  - v1.0.1 released on GitHub 2026-10-01: the live `latest/download/update.json` verified (signature
+    OK, zip matches). **Not yet:** the user seeing the dialog in their installed 1.0.0, and the update of
     an *elevated* instance (the E2E used `--no-elevate`).
 
 ## Watch list (the user asked to keep an eye on these and re-test them over time)

@@ -6,9 +6,10 @@ formátu map souborů.
 
 ## Instalace pro hráče
 
-Stáhni `NewUOAM-<verze>-win-x64.zip` z [Releases](https://github.com/Bengur2/new-uoam/releases/latest),
-rozbal ho kamkoli mimo `Program Files` a spusť `NewUOAM\NewUOAM.App.exe`. .NET instalovat není
-potřeba. Nové verze mapa nabídne sama při spuštění (nebo **Mapa > Zkontrolovat aktualizace…**).
+Web s popisem a ovládáním: **https://bengur2.github.io/new-uoam/**. Stáhni
+[NewUOAM-Setup.exe](https://github.com/Bengur2/new-uoam/releases/latest/download/NewUOAM-Setup.exe)
+a spusť ho (případně zip z [Releases](https://github.com/Bengur2/new-uoam/releases/latest),
+rozbalený mimo `Program Files`). .NET instalovat není potřeba. Nové verze mapa nabídne sama při spuštění (nebo **Mapa > Zkontrolovat aktualizace…**).
 Markery a nastavení zůstanou. Vydávání verzí a pravidla kompatibility jsou v `docs/RELEASE.md`.
 
 ## Co mapa posílá ven (soukromí)

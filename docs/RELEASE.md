@@ -83,13 +83,29 @@ hodnotu. Proto:
 
 ## Pro hráče: první instalace
 
-1. Na https://github.com/Bengur2/new-uoam/releases/latest stáhni `NewUOAM-<verze>-win-x64.zip`.
-2. Rozbal ho kamkoli, kam se dá zapisovat (např. `Dokumenty\NewUOAM`, **ne** `Program Files`).
-3. Spusť `NewUOAM\NewUOAM.App.exe`. Windows možná napoprvé ukáže „Systém Windows ochránil váš
-   počítač“ (aplikace není podepsaná certifikátem): **Další informace → Přesto spustit**.
-   U automatických aktualizací se to už neopakuje.
+Web s popisem a tlačítkem ke stažení: **https://bengur2.github.io/new-uoam/** (zdroj
+`docs/index.html` + `docs/img/`. GitHub Pages ho servíruje přímo ze složky `docs/` větve main, takže
+každý push ho do minuty aktualizuje).
 
-.NET instalovat není potřeba, balíček ho obsahuje (proto má zip ~67 MB).
+1. Stáhni instalátor `NewUOAM-Setup.exe`. Odkaz
+   https://github.com/Bengur2/new-uoam/releases/latest/download/NewUOAM-Setup.exe vede vždy na
+   nejnovější verzi.
+2. Spusť ho. Windows možná napoprvé ukáže „Systém Windows ochránil váš počítač“ (instalátor není
+   podepsaný certifikátem): **Další informace → Přesto spustit**. Instaluje se jen pro tvůj účet do
+   `%LocalAppData%\Programs\NewUOAM`, bez práv správce, se zástupcem ve Startu (a na ploše, když ho
+   zaškrtneš). U automatických aktualizací se upozornění už neopakuje.
+3. Odinstalace: Nastavení Windows > Aplikace > new UOAM. Nastavení a markery v
+   `%LocalAppData%\NewUOAM` zůstanou.
+
+Bez instalátoru: zip `NewUOAM-<verze>-win-x64.zip` z téže stránky rozbal kamkoli, kam se dá
+zapisovat (**ne** `Program Files`), a spusť `NewUOAM\NewUOAM.App.exe`.
+
+.NET instalovat není potřeba, balíček ho obsahuje (instalátor ~51 MB, zip ~68 MB).
+
+**Instalátor** = `installer/NewUOAM.iss` (Inno Setup 6, čeština z jeho `Czech.isl`). Sestavuje ho
+`release.ps1` ze stejné složky jako zip, včetně `NewUOAM.files`, takže se nainstalovaná kopie
+aktualizuje stejně. Na PC, ze kterého se vydává, musí být Inno Setup
+(`winget install JRSoftware.InnoSetup --scope user`). Ikonu kreslí `tools/Release/make-icon.ps1`.
 
 ## Testování bez GitHubu
 

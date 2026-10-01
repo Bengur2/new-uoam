@@ -18,6 +18,7 @@ using NewUOAM.Positioning;
 using NewUOAM.Positioning.Providers;
 using NewUOAM.Positioning.ClientIntegration;
 using NewUOAM.Positioning.Relay;
+using NewUOAM.Updates;
 
 namespace NewUOAM.App;
 
@@ -224,6 +225,11 @@ public partial class MainWindow : Window
         _markerCategoryVisible = settings.MarkerCategories ?? new();
         RebuildMarkerRows(); // empty until markers load - shows the "nothing loaded" hint
         VersionMenuItem.Header = $"Verze {App.CurrentVersion}";
+        // Version in the title (user's request 2026-10-01); a build from bin\ says so, to tell it
+        // apart from the installed package when both run.
+        Title = PackageInstaller.IsInstalledPackage(AppContext.BaseDirectory)
+            ? $"new UOAM {App.CurrentVersion}"
+            : $"new UOAM {App.CurrentVersion} (vývoj)";
         _applyingLoadedSettings = false;
         StartClientTracking();
 
