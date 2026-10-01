@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using NewUOAM.Positioning;
@@ -48,6 +49,12 @@ public sealed class RelayServer
     {
         public required string Name;
         public required string Password;
+        // Admin-list identity (names aren't unique), who made it and when it was last joined;
+        // player-made rooms unused for PlayerRoomExpiryDays are deleted (SweepRoomsAsync).
+        public required string Id;
+        public bool CreatedByPlayer;
+        public DateTimeOffset CreatedUtc = DateTimeOffset.UtcNow;
+        public DateTimeOffset LastUsedUtc = DateTimeOffset.UtcNow;
         public readonly ConcurrentDictionary<string, Session> Sessions = new();
         // The room's shared marker, memory only (like sessions). Replaced as a whole immutable
         // record, so a plain volatile reference is enough.
@@ -68,13 +75,29 @@ public sealed class RelayServer
         public readonly Dictionary<string, RelayProtocol.SharedMark> ById = new();
     }
 
-    private sealed record RoomRecord(string Name, string Password);
+    // rooms.json entry. The fields after Password were added 2026-10-01; an older file (name and
+    // password only) loads as admin rooms with a fresh id and today's dates.
+    private sealed record RoomRecord(string Name, string Password, string? Id = null, bool CreatedByPlayer = false,
+        DateTimeOffset? CreatedUtc = null, DateTimeOffset? LastUsedUtc = null);
+
+    // relay-settings.json next to rooms.json: what the admin switched at runtime.
+    private sealed record RelaySettings(bool PlayerRoomCreation = true);
+
+    /// <summary>Spam limits for player room creation: per IP (memory only, nothing stored) and in total.</summary>
+    public const int MaxPlayerRoomsPerIpPerHour = 3;
+    public const int MaxPlayerRooms = 500;
+    private const string PasswordAlphabet = "abcdefghijkmnpqrstuvwxyz23456789"; // no l/o/0/1 to misread
+    private const int GeneratedPasswordLength = 10;
 
     private readonly IPAddress _bindAddress;
     private readonly int _port;
     private readonly string? _adminPassword;
     private readonly string? _roomsFilePath;
     private readonly ConcurrentDictionary<string, Room> _roomsByPassword = new();
+    private readonly Dictionary<IPAddress, List<DateTimeOffset>> _createsByIp = new();
+    private volatile bool _playerRoomCreation = true;
+    private volatile bool _roomsDirty;
+    private DateTimeOffset _roomsSavedAt = DateTimeOffset.MinValue;
     private UdpClient? _udp;
 
     public RelayServer(IPAddress bindAddress, int port, string? adminPassword, string? roomsFilePath)
@@ -112,6 +135,7 @@ public sealed class RelayServer
             // right after cancelling this one (e.g. a restart, or a test) gets a "address already
             // in use" SocketException even though RunAsync already returned.
             _udp?.Dispose();
+            if (_roomsDirty) SaveRooms(); // usage dates not yet written by the throttled save
         }
     }
 
@@ -137,6 +161,12 @@ public sealed class RelayServer
             if (RelayProtocol.TryParseAdminCommand(text, out var adminCommand))
             {
                 await HandleAdminCommandAsync(adminCommand, result.RemoteEndPoint);
+                continue;
+            }
+
+            if (RelayProtocol.TryParseRoomCreate(text, out string createRequestId, out string createName))
+            {
+                await HandleRoomCreateAsync(createRequestId, createName, result.RemoteEndPoint);
                 continue;
             }
 
@@ -292,6 +322,8 @@ public sealed class RelayServer
     /// touched.</summary>
     private async Task AnnounceJoinAsync(Room room, Session newcomer)
     {
+        room.LastUsedUtc = DateTimeOffset.UtcNow;
+        _roomsDirty = true;
         byte[] joinPayload = RelayProtocol.WireEncoding.GetBytes(RelayProtocol.EncodeJoin(newcomer.Name, newcomer.Color));
         await BroadcastPayloadAsync(room, joinPayload, excludeName: newcomer.Name);
         if (newcomer.Last is not null)
@@ -559,6 +591,21 @@ public sealed class RelayServer
             case "DELETE":
                 await HandleAdminDeleteAsync(command.Args, replyTo);
                 break;
+            case "ROOMS":
+                await HandleAdminRoomsAsync(command.Args, replyTo);
+                break;
+            case "DELETEID":
+                await HandleAdminDeleteIdsAsync(command.Args, replyTo);
+                break;
+            case "SETTINGS":
+                await SendAdminOkAsync("SETTINGS", replyTo, PlayerRoomSettingsData());
+                break;
+            case "SETCREATE":
+                _playerRoomCreation = command.Args.FirstOrDefault() == "1";
+                SaveSettings();
+                Console.WriteLine($"[admin] player room creation {(_playerRoomCreation ? "enabled" : "disabled")} from {replyTo}");
+                await SendAdminOkAsync("SETCREATE", replyTo, PlayerRoomSettingsData());
+                break;
             default:
                 await SendAdminErrAsync(command.Command, "UNKNOWN_COMMAND", replyTo);
                 break;
@@ -575,7 +622,7 @@ public sealed class RelayServer
         string roomName = args[0];
         string roomPassword = args[1];
 
-        var room = new Room { Name = roomName, Password = roomPassword };
+        var room = new Room { Name = roomName, Password = roomPassword, Id = NewRoomId() };
         if (!_roomsByPassword.TryAdd(roomPassword, room))
         {
             await SendAdminErrAsync("CREATE", "DUPLICATE_PASSWORD", replyTo);
@@ -637,6 +684,127 @@ public sealed class RelayServer
         await SendAsync(payload, replyTo);
     }
 
+    // creation on/off, player rooms now, the cap.
+    private string[] PlayerRoomSettingsData() =>
+        [_playerRoomCreation ? "1" : "0", _roomsByPassword.Values.Count(r => r.CreatedByPlayer).ToString(), MaxPlayerRooms.ToString()];
+
+    /// <summary>One page of the room list, newest first: total, count, then
+    /// AdminRoomFields fields per room. Never passwords or players.</summary>
+    private async Task HandleAdminRoomsAsync(string[] args, IPEndPoint replyTo)
+    {
+        int offset = args.Length > 0 && int.TryParse(args[0], out int o) && o >= 0 ? o : 0;
+        var all = _roomsByPassword.Values.OrderByDescending(r => r.CreatedUtc).ToList();
+        var page = all.Skip(offset).Take(RelayProtocol.AdminRoomsPageSize).ToList();
+        var data = new List<string> { all.Count.ToString(), page.Count.ToString() };
+        foreach (var r in page)
+            data.AddRange(RelayProtocol.EncodeAdminRoomFields(new RelayProtocol.AdminRoomInfo(r.Id, r.Name, r.CreatedByPlayer, r.CreatedUtc, r.LastUsedUtc)));
+        await SendAdminOkAsync("ROOMS", replyTo, [.. data]);
+    }
+
+    private async Task HandleAdminDeleteIdsAsync(string[] args, IPEndPoint replyTo)
+    {
+        var ids = (args.FirstOrDefault() ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+        if (ids.Count == 0)
+        {
+            await SendAdminErrAsync("DELETEID", "INVALID_ARGS", replyTo);
+            return;
+        }
+        var rooms = _roomsByPassword.Values.Where(r => ids.Contains(r.Id)).ToList();
+        int kicked = await RemoveRoomsAsync(rooms);
+        Console.WriteLine($"[admin] {rooms.Count} room(s) deleted by id ({kicked} player(s) kicked) from {replyTo}");
+        await SendAdminOkAsync("DELETEID", replyTo, rooms.Count.ToString(), kicked.ToString());
+    }
+
+    /// <summary>Removes the rooms (no new joins land in them from here on), tells everyone
+    /// connected that they were kicked, saves. Returns how many players were kicked.</summary>
+    private async Task<int> RemoveRoomsAsync(IReadOnlyCollection<Room> rooms)
+    {
+        if (rooms.Count == 0) return 0;
+        int kicked = 0;
+        byte[] kickedPayload = RelayProtocol.WireEncoding.GetBytes(RelayProtocol.EncodeKicked("room deleted"));
+        foreach (var room in rooms)
+        {
+            _roomsByPassword.TryRemove(room.Password, out _);
+            foreach (var session in room.Sessions.Values)
+            {
+                await SendAsync(kickedPayload, session.Endpoint);
+                kicked++;
+            }
+        }
+        SaveRooms();
+        return kicked;
+    }
+
+    /// <summary>A player asks for a new room (RoomCreateTag). The server picks the password, so a
+    /// reply can never reveal whether some password exists. Limits: the admin's on/off switch,
+    /// MaxPlayerRoomsPerIpPerHour per IP (in memory only, no IP is ever stored) and MaxPlayerRooms
+    /// in total.</summary>
+    private async Task HandleRoomCreateAsync(string requestId, string requestedName, IPEndPoint from)
+    {
+        async Task Fail(string reason)
+        {
+            Console.WriteLine($"[n] room creation refused ({reason})");
+            await SendAsync(RelayProtocol.WireEncoding.GetBytes(RelayProtocol.EncodeRoomCreateErr(requestId, reason)), from);
+        }
+
+        if (!_playerRoomCreation) { await Fail("DISABLED"); return; }
+        string? name = RelayProtocol.CleanRoomName(requestedName);
+        if (name is null) { await Fail("INVALID_NAME"); return; }
+        if (_roomsByPassword.Values.Count(r => r.CreatedByPlayer) >= MaxPlayerRooms) { await Fail("FULL"); return; }
+
+        if (!TryTakeCreateSlot(from.Address)) { await Fail("RATE_LIMIT"); return; }
+
+        var room = new Room { Name = name, Password = NewRoomPassword(), Id = NewRoomId(), CreatedByPlayer = true };
+        _roomsByPassword[room.Password] = room;
+        SaveRooms();
+        Console.WriteLine($"[n] room '{name}' created by a player (id {room.Id})");
+        await SendAsync(RelayProtocol.WireEncoding.GetBytes(RelayProtocol.EncodeRoomCreateOk(requestId, room.Password)), from);
+    }
+
+    /// <summary>Sliding one-hour window per IP, memory only.</summary>
+    private bool TryTakeCreateSlot(IPAddress ip)
+    {
+        var now = DateTimeOffset.UtcNow;
+        lock (_createsByIp)
+        {
+            foreach (var key in _createsByIp.Keys.ToList())
+            {
+                _createsByIp[key].RemoveAll(t => now - t > TimeSpan.FromHours(1));
+                if (_createsByIp[key].Count == 0) _createsByIp.Remove(key);
+            }
+            if (!_createsByIp.TryGetValue(ip, out var times)) _createsByIp[ip] = times = [];
+            if (times.Count >= MaxPlayerRoomsPerIpPerHour) return false;
+            times.Add(now);
+            return true;
+        }
+    }
+
+    /// <summary>Marks rooms with players as used, deletes player rooms unused for
+    /// PlayerRoomExpiryDays, and saves the usage dates at most once a minute.</summary>
+    private async Task SweepRoomsAsync(DateTimeOffset now)
+    {
+        foreach (var room in _roomsByPassword.Values)
+        {
+            if (!room.Sessions.IsEmpty && now - room.LastUsedUtc > TimeSpan.FromMinutes(10))
+            {
+                room.LastUsedUtc = now;
+                _roomsDirty = true;
+            }
+        }
+        var expired = _roomsByPassword.Values
+            .Where(r => r.CreatedByPlayer && r.Sessions.IsEmpty && now - r.LastUsedUtc > TimeSpan.FromDays(RelayProtocol.PlayerRoomExpiryDays))
+            .ToList();
+        if (expired.Count > 0)
+        {
+            await RemoveRoomsAsync(expired);
+            Console.WriteLine($"[n] {expired.Count} unused player room(s) expired");
+        }
+        if (_roomsDirty && now - _roomsSavedAt > TimeSpan.FromMinutes(1)) SaveRooms();
+    }
+
+    private async Task SendAdminOkAsync(string command, IPEndPoint replyTo, params string[] data) =>
+        await SendAsync(RelayProtocol.WireEncoding.GetBytes(RelayProtocol.EncodeAdminOk(command, data)), replyTo);
+
     private async Task SendAdminErrAsync(string command, string reason, IPEndPoint replyTo)
     {
         byte[] payload = RelayProtocol.WireEncoding.GetBytes(RelayProtocol.EncodeAdminErr(command, reason));
@@ -656,6 +824,7 @@ public sealed class RelayServer
             catch (OperationCanceledException) { break; }
 
             var now = DateTimeOffset.UtcNow;
+            await SweepRoomsAsync(now);
             foreach (var room in _roomsByPassword.Values)
             {
                 foreach (var kv in room.Sessions)
@@ -721,12 +890,23 @@ public sealed class RelayServer
 
     private void LoadRooms()
     {
+        LoadSettings();
         if (_roomsFilePath is null || !File.Exists(_roomsFilePath)) return;
         try
         {
             var records = JsonSerializer.Deserialize<RoomRecord[]>(File.ReadAllText(_roomsFilePath)) ?? [];
+            bool upgraded = false;
             foreach (var r in records)
-                _roomsByPassword[r.Password] = new Room { Name = r.Name, Password = r.Password };
+            {
+                upgraded |= r.Id is null;
+                var now = DateTimeOffset.UtcNow;
+                _roomsByPassword[r.Password] = new Room
+                {
+                    Name = r.Name, Password = r.Password, Id = r.Id ?? NewRoomId(), CreatedByPlayer = r.CreatedByPlayer,
+                    CreatedUtc = r.CreatedUtc ?? now, LastUsedUtc = r.LastUsedUtc ?? r.CreatedUtc ?? now,
+                };
+            }
+            if (upgraded) SaveRooms(); // ids must stay stable from now on
         }
         catch (Exception ex)
         {
@@ -736,15 +916,49 @@ public sealed class RelayServer
 
     private void SaveRooms()
     {
+        _roomsDirty = false;
+        _roomsSavedAt = DateTimeOffset.UtcNow;
         if (_roomsFilePath is null) return;
         try
         {
-            var records = _roomsByPassword.Values.Select(r => new RoomRecord(r.Name, r.Password)).ToArray();
-            File.WriteAllText(_roomsFilePath, JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true }));
+            var records = _roomsByPassword.Values
+                .Select(r => new RoomRecord(r.Name, r.Password, r.Id, r.CreatedByPlayer, r.CreatedUtc, r.LastUsedUtc)).ToArray();
+            // Write-then-rename, so a crash mid-write can't leave a truncated rooms.json.
+            string tmp = _roomsFilePath + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(tmp, _roomsFilePath, overwrite: true);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Nepodařilo se uložit {_roomsFilePath}: {ex.Message}");
+        }
+    }
+
+    private string? SettingsFilePath =>
+        _roomsFilePath is null ? null : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_roomsFilePath))!, "relay-settings.json");
+
+    private void LoadSettings()
+    {
+        if (SettingsFilePath is not { } path || !File.Exists(path)) return;
+        try { _playerRoomCreation = (JsonSerializer.Deserialize<RelaySettings>(File.ReadAllText(path)) ?? new()).PlayerRoomCreation; }
+        catch (Exception ex) { Console.WriteLine($"Nepodařilo se načíst {path}: {ex.Message} (výchozí nastavení)"); }
+    }
+
+    private void SaveSettings()
+    {
+        if (SettingsFilePath is not { } path) return;
+        try { File.WriteAllText(path, JsonSerializer.Serialize(new RelaySettings(_playerRoomCreation), new JsonSerializerOptions { WriteIndented = true })); }
+        catch (Exception ex) { Console.WriteLine($"Nepodařilo se uložit {path}: {ex.Message}"); }
+    }
+
+    private static string NewRoomId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
+
+    private string NewRoomPassword()
+    {
+        while (true)
+        {
+            string password = RandomNumberGenerator.GetString(PasswordAlphabet, GeneratedPasswordLength);
+            if (!_roomsByPassword.ContainsKey(password)) return password;
         }
     }
 }

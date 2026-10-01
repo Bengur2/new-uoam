@@ -174,7 +174,7 @@
         <div class="card"><h3>Mapa z tvého klienta</h3><p>Čte soubory mapy (<code>.mul</code> i <code>.uop</code>) a kreslí je stejnými barvami jako radar ve hře, včetně budov a stromů. Pohled otočený o 45° nebo sever nahoru, plynulé posouvání.</p></div>
         <div class="card"><h3>Pozice postavy sama</h3><p>Sleduje běžící OrionUO bez skriptů a bez tlačítek. Při víc klientech si v menu <b>Klient</b> vybereš, kterou postavu sledovat.</p></div>
         <div class="card"><h3>Markery</h3><p>Soubory markerů staré UOAM (<code>.map</code>) i <code>.csv</code>, 199 ikon. Panel s hledáním a kategoriemi, vlastní štítky, přelet na marker jedním klikem.</p></div>
-        <div class="card"><h3>Spoluhráči na mapě</h3><p>V místnosti chráněné heslem vidíte jeden druhého, každý ve své barvě. Když je někdo mimo výřez, ukáže ho šipka na okraji mapy.</p></div>
+        <div class="card"><h3>Spoluhráči na mapě</h3><p>V místnosti chráněné heslem vidíte jeden druhého, každý ve své barvě. Vlastní místnost si založíš přímo v aplikaci. Když je někdo mimo výřez, ukáže ho šipka na okraji mapy.</p></div>
         <div class="card"><h3>Chat i ve hře</h3><p>Chat místnosti v okně mapy i přímo ve hře (přes Orion Assistant), soukromé zprávy, historie a počítadlo nepřečtených.</p></div>
         <div class="card"><h3>Panika a sdílený bod</h3><p>Panic! ukáže všem, kde potřebuješ pomoc, i se směrem nad hlavou ve hře. Sdílený marker označí místo, kam běžet. Markery jde sdílet celé místnosti.</p></div>
         <div class="card"><h3>Tracking</h3><p>Hráče nalezené skillem Tracking pošleš místnosti jedním příkazem. Ostatním se ukáže malá mapa s místem a jmény.</p></div>
@@ -204,7 +204,7 @@
         <li><h3>Mapa &gt; Nastavení…</h3><p>V části <b>Soubory mapy</b> vyber složku klienta Ultima Online (ta, kde je <code>map0.mul</code> nebo <code>map0LegacyMUL.uop</code>, <code>statics0.mul</code> a <code>radarcol.mul</code>) a klikni na <b>Načíst mapu</b>. Poprvé se mapa předpočítá (desítky sekund), pak se načítá hned.</p></li>
         <li><h3>Markery (nepovinné)</h3><p>Ve stejném okně vyber složku se soubory markerů <code>.map</code>/<code>.csv</code>. Když ji necháš prázdnou, hledají se ve složce mapy.</p></li>
         <li><h3>Spusť hru</h3><p>Jakmile se v OrionUO přihlásíš, objeví se na mapě červený čtvereček: tvoje postava.</p></li>
-        <li><h3>Online &gt; Připojit k mapě… (pro hru s ostatními)</h3><p>Adresa serveru je vyplněná. Doplň <b>heslo místnosti</b> (dostaneš ho od správce mapy), případně <b>zobrazované jméno</b> (prázdné = jméno postavy) a <b>barvu</b>. Volba <b>Připojit automaticky při spuštění</b> tě příště připojí sama.</p></li>
+        <li><h3>Online &gt; Připojit k mapě… (pro hru s ostatními)</h3><p>Adresa serveru je vyplněná. Doplň <b>heslo místnosti</b>, které ti dá ten, kdo místnost založil. Nebo si založ vlastní tlačítkem <b>Založit novou místnost…</b>: zadáš jméno, server vygeneruje heslo a to pošleš spoluhráčům. Místnost, do které se 3 měsíce nikdo nepřipojí, se sama smaže. Případně <b>zobrazované jméno</b> (prázdné = jméno postavy) a <b>barvu</b>. Volba <b>Připojit automaticky při spuštění</b> tě příště připojí sama.</p></li>
       </ol>
     </div>
   </section>
@@ -255,7 +255,7 @@
       <p class="sub">Celý kód, včetně serveru, je <a href="https://github.com/Bengur2/new-uoam">veřejný</a>. Tady je to stručně.</p>
       <div class="two">
         <div class="card"><h3>Ve tvém počítači</h3><p>Z paměti klienta jen <b>čte</b> pozici tvé postavy. Nic do hry nezapisuje ani nevkládá. Zprávy do hry jdou přes rozhraní, které k tomu Orion Assistant nabízí.</p></div>
-        <div class="card"><h3>Na server</h3><p>Jen když se připojíš do místnosti: jméno, barva, pozice, chat, sdílené markery, panika a tracking. Vidí je jen lidé ve stejné místnosti. Server je drží jen v paměti. Do provozního logu zapíše příchod a odchod (jméno, IP adresa), paniku, sdílený marker a tracking, ale <b>ne obsah chatu ani průběžné pozice</b>.</p></div>
+        <div class="card"><h3>Na server</h3><p>Jen když se připojíš do místnosti: jméno, barva, pozice, chat, sdílené markery, panika a tracking. Vidí je jen lidé ve stejné místnosti. Server je drží jen v paměti. Na disk ukládá jen místnosti (jméno, heslo, kdy vznikla a kdy byla naposledy použita). Do provozního logu zapíše příchod a odchod (jméno, IP adresa), paniku, sdílený marker a tracking, ale <b>ne obsah chatu ani průběžné pozice</b>.</p></div>
       </div>
       <div class="callout">Kromě toho mapa při spuštění jen zkontroluje na GitHubu, jestli je venku nová verze. Aktualizace je podepsaná, takže mapa nepřijme nic, co nepochází od autora.</div>
     </div>
@@ -268,6 +268,7 @@
       <details><summary>Mapa neukazuje mou postavu</summary><p>Musíš být ve hře přihlášený (ne na přihlašovací obrazovce). Ve stavovém řádku dole uvidíš, co se děje. „neznámá verze…“ znamená novou verzi OrionUO. Mapa se ji pokusí rozpoznat sama, a když to nepůjde, napiš autorovi.</p></details>
       <details><summary>Mapa je prázdná nebo se nenačte</summary><p>V Mapa &gt; Nastavení je vybraná špatná složka. Musí to být složka klienta, ve které je <code>map0.mul</code> nebo <code>map0LegacyMUL.uop</code> a <code>radarcol.mul</code>.</p></details>
       <details><summary>Zprávy ani příkazy ve hře nefungují</summary><p>Potřebují Orion Assistant a přihlášenou postavu. Mapa musí běžet. Když zapneš mapu až po spuštění klienta, příkazy se zaregistrují za pár sekund.</p></details>
+      <details><summary>Místnost nejde založit</summary><p>Z jednoho připojení jdou založit nejvýš 3 místnosti za hodinu. Admin může zakládání při spamu dočasně vypnout; pak to zkus později.</p></details>
       <details><summary>„Nepodařilo se připojit k mapě“</summary><p>Zkontroluj heslo místnosti. Chyba 107 znamená, že stejné jméno už v místnosti někdo používá; nastav si jiné zobrazované jméno.</p></details>
       <details><summary>Jak mapu odinstaluju?</summary><p>Nastavení Windows &gt; Aplikace &gt; new UOAM. Tvoje nastavení a markery zůstanou v <code>%LocalAppData%\NewUOAM</code> pro případ, že ji nainstaluješ znovu. Chceš-li je smazat, smaž tu složku ručně.</p></details>
     </div>

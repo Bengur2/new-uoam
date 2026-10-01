@@ -21,7 +21,7 @@ has a detailed section further down - this list is just the map of what exists.
 | Side panel = marker browser (sections, categories, search, fly-to) | done | "Side panel = marker browser" |
 | Sharing markers with the room (hidden by default at receivers, save to `shared_markers.map`) | done, server deployed 2026-09-29 | "Sharing markers with the room" |
 | Multiplayer relay (UDP, positions, glide, edge arrows, display name) | done, deployed | "Multiplayer relay" |
-| Rooms (admin create/list/delete, kick on delete) | done, deployed | "Multiplayer rooms" |
+| Rooms (admin create/list/delete, kick on delete); players create their own rooms (server-generated password), admin list with dates + multi-delete + creation switch, 90-day expiry | done; v2 loopback 22/22 + UI test, deployed 2026-10-01 (live 7/7; `.prev` + `rooms.json.bak-20261001` kept on the VM) | "Multiplayer rooms" + "Player-created rooms" |
 | Room chat (no persistence, click map + type) | done, deployed | "Room chat" |
 | Event-driven presence, player colors, invisible-name error 103, UTF-8 wire | done, deployed | "Event-driven presence..." |
 | Map chat shown inside the UO client (UOAssist API via Orion Assistant) | done, verified live | "Map chat inside the UO client" |
@@ -1024,6 +1024,56 @@ the admin can list existing rooms *without* player lists/positions/passwords.
   `UOAMAC1` packet and dropping it. **Always use forward slashes for `dotnet publish -o` paths
   when the command runs through the Bash tool** (`publish/relay`, not `publish\relay`) - confirmed
   fixed by re-publishing with a forward slash and diffing the two folders' file timestamps.
+
+### Player-created rooms + admin v2 (2026-10-01)
+
+User's request: players create their own rooms, only the admin sees and deletes rooms, and the
+admin can switch player room creation off (default on) when spammed. The user chose to do creation
+**in the app, not on the web**: GitHub Pages is static and a browser can't speak UDP, so a web
+portal would need an HTTPS API on the VM.
+- **Creation** (`RelayProtocol.RoomCreateTag` `UOAMNC1|requestId|base64(name)` →
+  `UOAMNR1|requestId|OK|password` / `ERR|reason`): Online > Připojit k mapě > "Založit novou
+  místnost…" (`CreateRoomWindow`). The result shows the password with Kopírovat, and "Použít heslo"
+  fills `RoomPasswordTextBox`.
+  - **The server generates the password** (10 chars, alphabet without l/o/0/1, crypto RNG), user's
+    pick. A player-chosen password would turn "already taken" into an oracle for other rooms'
+    passwords.
+  - Limits (`HandleRoomCreateAsync`): the admin switch (`DISABLED`), `CleanRoomName` (trimmed,
+    control chars dropped, ≤40, visible; `INVALID_NAME`), `MaxPlayerRooms` 500 player rooms
+    (`FULL`), `MaxPlayerRoomsPerIpPerHour` 3 (`RATE_LIMIT`). The per-IP window is **memory only**;
+    no IP is ever written to disk (the user's privacy page says so).
+- **Room data**: `Room` gained `Id` (8 hex, admin addressing; names aren't unique),
+  `CreatedByPlayer`, `CreatedUtc`, `LastUsedUtc`. `rooms.json` records carry them as optional
+  fields. An old `[{Name, Password}]` file loads as admin rooms with fresh ids and is re-saved
+  right away so the ids stay stable. Saves go through a temp file + rename. `LastUsedUtc` is set
+  on every join (`AnnounceJoinAsync`) and refreshed every 10 min while a room has players. Those
+  writes are throttled to once a minute (`SweepRoomsAsync`, plus a final save on shutdown).
+- **Expiry**: player rooms without players and unused for `PlayerRoomExpiryDays` (90, the
+  user's "3 months") are deleted by the sweep. Admin rooms never expire.
+- **Admin protocol v2** (old CREATE/LIST/DELETE kept): `ROOMS|offset` (pages of
+  `AdminRoomsPageSize` 40, newest first; total, count, then id/name/source/created/lastUsed per
+  room; never passwords or players), `DELETEID|id,id,…` (kicks connected players like DELETE),
+  `SETTINGS` / `SETCREATE|0/1` → creation on/off, player room count, cap. The switch persists in
+  `relay-settings.json` next to `rooms.json`.
+- **`AdminWindow`** rework: a list with Název / Založil (hráč/admin) / Založeno / Naposledy
+  použita, multi-select delete with one confirmation, "Vybrat hráčské za posledních 24 h" (spam
+  cleanup), the creation checkbox (Click handler, so it only reacts to the user), and admin room
+  creation with a chosen password in an Expander. Against an older server it falls back to
+  names only.
+- `RelayAdminClient.SendAndAwaitAsync` now also treats a `SocketException` (e.g. ICMP port
+  unreachable) as a timeout instead of throwing into an `async void` handler.
+- **Verified:**
+  - Scratch loopback test against a real `RelayServer` (22 checks): old-format load + ids, expiry
+    of a 120-day-old player room but not an admin one, bad admin password, default on, create
+    with trimmed name and alphabet, 4th create per hour refused, invisible name refused, player
+    joins with the generated password, delete by id kicks them, switch off persists across a
+    restart and refuses creation, ids stable after the restart, paging of 104 rooms, old LIST
+    still works, no IP in `rooms.json`.
+  - Real app + local relay via UI Automation: create → password → "Použít heslo" fills the field,
+    admin list (screenshot), switch off (server log), select-24h + delete with confirmation.
+  - UIA notes: `TogglePattern` doesn't raise a WPF CheckBox's `Click`, and MessageBox buttons
+    are `Pane`s without Invoke. The test posted WM_KEYDOWN space to the window and BM_CLICK to the
+    button instead of `SendKeys`, which would type into whatever window is in the foreground.
 
 ### Room chat (live text chat, no persistence anywhere)
 

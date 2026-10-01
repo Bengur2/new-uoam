@@ -1014,6 +1014,17 @@ public partial class MainWindow : Window
         ClearChatHistory();
     }
 
+    private void CreateRoomButton_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new CreateRoomWindow(RelayServerTextBox.Text.Trim()) { Owner = Window.GetWindow((DependencyObject)sender) ?? this };
+        if (window.ShowDialog() != true || window.Password is not { } password) return;
+        RoomPasswordTextBox.Text = password;
+        SaveSettings();
+        Log(_relayClient is null
+            ? "Heslo nové místnosti je vyplněné. Klikni na Připojit."
+            : "Heslo nové místnosti je vyplněné. Odpoj se a připoj znovu, abys přešel do nové místnosti.");
+    }
+
     private void OpenAdminButton_Click(object sender, RoutedEventArgs e)
     {
         var admin = new AdminWindow(RelayServerTextBox.Text.Trim()) { Owner = this };

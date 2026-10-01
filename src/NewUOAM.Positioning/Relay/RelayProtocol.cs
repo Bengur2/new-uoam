@@ -716,6 +716,92 @@ public static class RelayProtocol
     public static string EncodeAdminDelete(string adminPassword, string roomName) =>
         $"{AdminCommandTag}|{Escape(adminPassword)}|DELETE|{Escape(roomName)}";
 
+    // Room management v2 (2026-10-01): rooms have an id, a source (admin / player) and dates, and
+    // players can create rooms themselves (RoomCreateTag). The admin sees the list page by page
+    // (a whole list could outgrow one datagram), deletes by id (names aren't unique) and switches
+    // player room creation on/off. The old CREATE/LIST/DELETE stay for older app builds.
+
+    /// <summary>Rooms per ROOMS reply page; each room is <see cref="AdminRoomFields"/> fields.</summary>
+    public const int AdminRoomsPageSize = 40;
+    public const int AdminRoomFields = 5;
+
+    public static string EncodeAdminRooms(string adminPassword, int offset) =>
+        $"{AdminCommandTag}|{Escape(adminPassword)}|ROOMS|{offset}";
+
+    public static string EncodeAdminDeleteIds(string adminPassword, IEnumerable<string> ids) =>
+        $"{AdminCommandTag}|{Escape(adminPassword)}|DELETEID|{string.Join(',', ids.Select(Escape))}";
+
+    public static string EncodeAdminGetSettings(string adminPassword) =>
+        $"{AdminCommandTag}|{Escape(adminPassword)}|SETTINGS";
+
+    public static string EncodeAdminSetCreation(string adminPassword, bool enabled) =>
+        $"{AdminCommandTag}|{Escape(adminPassword)}|SETCREATE|{(enabled ? 1 : 0)}";
+
+    /// <summary>One room in the admin list: never its password or players.</summary>
+    public sealed record AdminRoomInfo(string Id, string Name, bool CreatedByPlayer, DateTimeOffset CreatedUtc, DateTimeOffset LastUsedUtc);
+
+    public static string[] EncodeAdminRoomFields(AdminRoomInfo r) =>
+        [r.Id, r.Name, r.CreatedByPlayer ? "player" : "admin", r.CreatedUtc.ToUnixTimeSeconds().ToString(), r.LastUsedUtc.ToUnixTimeSeconds().ToString()];
+
+    public static AdminRoomInfo? TryDecodeAdminRoomFields(ReadOnlySpan<string> f)
+    {
+        if (f.Length < AdminRoomFields || !long.TryParse(f[3], out long created) || !long.TryParse(f[4], out long used)) return null;
+        return new AdminRoomInfo(f[0], f[1], f[2] == "player",
+            DateTimeOffset.FromUnixTimeSeconds(created), DateTimeOffset.FromUnixTimeSeconds(used));
+    }
+
+    // ---- Player room creation: request/response like the admin protocol, but no admin password.
+    // The server picks the password (a player-chosen one would leak whether a password is taken,
+    // i.e. let anyone probe for other rooms), rate-limits per IP and can be switched off. ----
+
+    public const string RoomCreateTag = "UOAMNC1";      // client -> server: "create a room named X"
+    public const string RoomCreateReplyTag = "UOAMNR1"; // server -> client: OK + password, or ERR + reason
+
+    public const int MaxRoomNameLength = 40;
+
+    /// <summary>Player-created rooms nobody joined for this long are deleted by the server.</summary>
+    public const int PlayerRoomExpiryDays = 90;
+
+    public static string EncodeRoomCreate(string requestId, string roomName) =>
+        $"{RoomCreateTag}|{Escape(requestId)}|{EncodeText(roomName)}";
+
+    public static bool TryParseRoomCreate(string line, out string requestId, out string roomName)
+    {
+        requestId = ""; roomName = "";
+        string[] p = line.Trim().Split('|');
+        if (p.Length < 3 || p[0] != RoomCreateTag || p[1].Length is 0 or > 32) return false;
+        requestId = p[1];
+        roomName = DecodeText(p[2]);
+        return true;
+    }
+
+    public static string EncodeRoomCreateOk(string requestId, string password) =>
+        $"{RoomCreateReplyTag}|{Escape(requestId)}|OK|{Escape(password)}";
+
+    public static string EncodeRoomCreateErr(string requestId, string reason) =>
+        $"{RoomCreateReplyTag}|{Escape(requestId)}|ERR|{Escape(reason)}";
+
+    public readonly record struct RoomCreateReply(string RequestId, bool Ok, string? Password, string? Error);
+
+    public static bool TryParseRoomCreateReply(string line, out RoomCreateReply reply)
+    {
+        reply = default;
+        string[] p = line.Trim().Split('|');
+        if (p.Length < 4 || p[0] != RoomCreateReplyTag) return false;
+        reply = p[2] == "OK" ? new RoomCreateReply(p[1], true, p[3], null) : new RoomCreateReply(p[1], false, null, p[3]);
+        return true;
+    }
+
+    /// <summary>A room name as the server stores it: trimmed, control characters dropped, at most
+    /// <see cref="MaxRoomNameLength"/> characters; null if nothing visible is left.</summary>
+    public static string? CleanRoomName(string? name)
+    {
+        if (name is null) return null;
+        string cleaned = new string(name.Where(c => !char.IsControl(c)).ToArray()).Replace('|', '_').Trim();
+        if (cleaned.Length > MaxRoomNameLength) cleaned = cleaned[..MaxRoomNameLength].Trim();
+        return IsVisibleName(cleaned) ? cleaned : null;
+    }
+
     public readonly record struct AdminCommand(string AdminPassword, string Command, string[] Args);
 
     public static bool TryParseAdminCommand(string line, out AdminCommand command)

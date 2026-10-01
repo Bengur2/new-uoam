@@ -335,7 +335,10 @@
                     </Border>
                 </Popup>
                 <TextBlock Text="Heslo místnosti" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
-                <TextBox x:Name="RoomPasswordTextBox" Padding="4,4" Margin="0,0,0,8"/>
+                <TextBox x:Name="RoomPasswordTextBox" Padding="4,4" Margin="0,0,0,4"/>
+                <!-- A player creates their own room; the server generates the password (CreateRoomWindow). -->
+                <Button x:Name="CreateRoomButton" Content="Založit novou místnost…" Padding="8,2" Margin="0,0,0,10"
+                        HorizontalAlignment="Left" Click="CreateRoomButton_Click"/>
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="StartRelayButton" Content="Připojit" Padding="8,3" Click="StartRelayButton_Click"/>
                     <Button x:Name="StopRelayButton" Content="Odpojit" Padding="8,3" Margin="6,0,0,0" Click="StopRelayButton_Click" IsEnabled="False"/>

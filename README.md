@@ -20,7 +20,7 @@ Markery a nastavení zůstanou. Vydávání verzí a pravidla kompatibility jsou
 - **Relay server dostane data, jen když se připojíš do místnosti** (Online > Připojit k mapě):
   heslo místnosti, tvoje zobrazované jméno a barvu, pozici, chat, sdílené markery, paniku,
   sdílený marker a track reporty. Vidí je jen lidé ve stejné místnosti. Server si na disk ukládá
-  jen seznam místností (jméno + heslo). Pozice, chat i markery drží jen v paměti. Do provozního
+  jen seznam místností (jméno, heslo, kdy vznikla a kdy byla naposledy použita). Pozice, chat i markery drží jen v paměti. Do provozního
   logu zapisuje příchod/odchod (jméno, místnost, IP adresa), položení sdíleného markeru, paniku a
   track report (kdo, kolik jmen, kde). **Obsah chatu ani průběžné pozice nezapisuje.**
 - **Kontrola aktualizací** = jeden dotaz na GitHub (`releases/latest/download/update.json`) při
