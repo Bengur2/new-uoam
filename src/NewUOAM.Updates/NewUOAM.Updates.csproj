@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Self-update for the player package: the signed update feed format (shared by the app, which
+       verifies it, and tools/NewUOAM.ReleaseTool, which signs it), download/verification, and the
+       in-place file swap. No WPF, so the release tool and tests can use it too. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

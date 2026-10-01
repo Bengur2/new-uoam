@@ -1,0 +1,527 @@
+﻿<Window x:Class="NewUOAM.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:NewUOAM.App"
+        mc:Ignorable="d"
+        Title="new UOAM" Height="720" Width="1000"
+        Background="#FF1E1E1E">
+    <Window.Resources>
+        <!-- One swatch of a color grid (PlayerColors.Palette). Shared by the player color picker
+             (Online) and your own marker's color (Mapa > Nastavení); ColorSwatch_Click tells them
+             apart by which popup is open. -->
+        <DataTemplate x:Key="ColorSwatchTemplate">
+            <Button Width="20" Height="20" Margin="1" Background="{Binding Brush}" ToolTip="{Binding Name}"
+                    Tag="{Binding Hex}" Click="ColorSwatch_Click" Cursor="Hand">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="SwatchBorder" Background="{TemplateBinding Background}" BorderBrush="Black" BorderThickness="1"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SwatchBorder" Property="BorderBrush" Value="White"/>
+                                <Setter TargetName="SwatchBorder" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </DataTemplate>
+    </Window.Resources>
+    <DockPanel LastChildFill="True">
+        <!-- Menu bar like old UOAM's (File, Zoom, Places...), user's request 2026-09-28. Hidden in
+             map-only mode (SetMapOnlyMode). Each item opens a HostedPanelWindow showing one of the
+             panels from DialogPanelStore below. -->
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top">
+            <MenuItem Header="_Mapa">
+                <MenuItem Header="_Nastavení…" Click="MapSettingsMenuItem_Click"/>
+                <Separator/>
+                <MenuItem Header="_Zkontrolovat aktualizace…" Click="CheckUpdatesMenuItem_Click"/>
+                <MenuItem x:Name="VersionMenuItem" Header="Verze" IsEnabled="False"/>
+            </MenuItem>
+            <MenuItem Header="_Online">
+                <MenuItem Header="_Připojit k mapě…" Click="OnlineMenuItem_Click"/>
+            </MenuItem>
+            <!-- Which running client the map tracks. Items are built each time it opens
+                 (ClientMenu_SubmenuOpened); the placeholder only makes it openable. -->
+            <MenuItem x:Name="ClientMenu" Header="_Klient" SubmenuOpened="ClientMenu_SubmenuOpened">
+                <MenuItem Header="…" IsEnabled="False"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- Collapsible settings side panel - replaces the old always-visible multi-row toolbar.
+             Fixed width, independent of the window/map width, so controls can never get clipped
+             by narrowing the window (the old toolbar's horizontal rows could). Toggled by
+             SettingsToggleButton (top-left corner over the map); state persisted in
+             AppSettings.SettingsPanelOpen. Hidden entirely in map-only mode, same as the old
+             toolbar was. -->
+        <!-- Since 2026-09-28 the side panel is a marker browser (user's request, modeled on a
+             colleague's "Moria Reborn Atlas"): search, Vše/Nic, categories (= icon type, like old
+             UOAM) with a checkbox and count, expandable to single markers - see
+             MainWindow.MarkerPanel.cs. Every setting moved to the menu dialogs. The list is a
+             virtualizing ListBox of flat rows (category + its markers when expanded), so
+             thousands of markers stay cheap. -->
+        <Border x:Name="SettingsPanel" DockPanel.Dock="Left" Width="320" Background="#FF2D2D30"
+                BorderBrush="#FF3F3F46" BorderThickness="0,0,1,0">
+            <DockPanel Margin="10,12,4,8">
+                <TextBlock DockPanel.Dock="Top" Text="new UOAM" Foreground="White" FontWeight="Bold" FontSize="17" Margin="4,0,0,12"/>
+
+                <DockPanel DockPanel.Dock="Top" Margin="4,0,8,6">
+                    <TextBlock x:Name="MarkerCountText" DockPanel.Dock="Right" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock Text="MARKERY" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+                </DockPanel>
+
+                <Grid DockPanel.Dock="Top" Margin="4,0,8,6">
+                    <TextBox x:Name="MarkerSearchTextBox" Padding="4,4" TextChanged="MarkerSearchTextBox_TextChanged"/>
+                    <TextBlock x:Name="MarkerSearchPlaceholder" Text="Hledat markery…" Foreground="Gray" FontStyle="Italic"
+                               Margin="7,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                </Grid>
+
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,0,8,8">
+                    <Button Content="Vše" Padding="10,2" Click="MarkerShowAllButton_Click" ToolTip="Zobrazit všechny kategorie"/>
+                    <Button Content="Nic" Padding="10,2" Margin="6,0,0,0" Click="MarkerHideAllButton_Click" ToolTip="Skrýt všechny kategorie"/>
+                </StackPanel>
+
+                <TextBlock x:Name="MarkerPanelHint" DockPanel.Dock="Top" Foreground="Gray" FontSize="11" TextWrapping="Wrap"
+                           Margin="4,0,8,6" Visibility="Collapsed"/>
+
+                <!-- Rows: MarkerCategoryRow / MarkerEntryRow (MainWindow.MarkerPanel.cs), one
+                     template each. Clicking a marker row flies the map to it
+                     (MarkerListItem_PreviewMouseLeftButtonUp), a category row expands/collapses. -->
+                <ListBox x:Name="MarkerList" Background="Transparent" BorderThickness="0" Foreground="White"
+                         HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="2,1"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <EventSetter Event="PreviewMouseLeftButtonUp" Handler="MarkerListItem_PreviewMouseLeftButtonUp"/>
+                            <EventSetter Event="PreviewMouseRightButtonUp" Handler="MarkerListItem_PreviewMouseRightButtonUp"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.Resources>
+                        <!-- Section header: MOJE MARKERY / ULOŽENÉ OD OSTATNÍCH / SDÍLENÉ V MÍSTNOSTI
+                             (only the shared one has a checkbox). -->
+                        <DataTemplate DataType="{x:Type local:MarkerSectionRow}">
+                            <DockPanel Cursor="Hand" Margin="0,8,0,2">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Arrow}" Foreground="Gray" Width="14" Margin="6,0,2,0" VerticalAlignment="Center"/>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Count}" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
+                                <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" Visibility="{Binding CheckboxVisibility}" VerticalAlignment="Center" Margin="0,0,6,0"
+                                          ToolTip="Zobrazovat sdílené markery od všech"/>
+                                <TextBlock Text="{Binding Title}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+                            </DockPanel>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type local:MarkerCategoryRow}">
+                            <DockPanel Cursor="Hand" ToolTip="Pravým tlačítkem sdílíš celou kategorii s místností">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Arrow}" Foreground="Gray" Width="14" Margin="6,0,2,0" VerticalAlignment="Center"/>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Count}" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
+                                <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type local:MarkerEntryRow}">
+                            <DockPanel Margin="22,0,0,0" Cursor="Hand" ToolTip="Klikni pro přesun mapy na marker, pravým tlačítkem ho sdílíš">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Coordinates}" Foreground="Gray" FontSize="11" Margin="6,0,18,0" VerticalAlignment="Center"/>
+                                <TextBlock DockPanel.Dock="Right" Text="sdíleno" Foreground="#FF6FB7FF" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"
+                                           Visibility="{Binding SharedBadgeVisibility}"/>
+                                <Image Source="{Binding Icon}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                                <TextBlock Text="{Binding Name}" Foreground="#FFD0D0D0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                        <!-- A player sharing markers: checkbox = show all of theirs (off by default). -->
+                        <DataTemplate DataType="{x:Type local:SharedOwnerRow}">
+                            <DockPanel Cursor="Hand" ToolTip="Pravým tlačítkem uložíš všechny jeho markery">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Arrow}" Foreground="Gray" Width="14" Margin="6,0,2,0" VerticalAlignment="Center"/>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Count}" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
+                                <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Border Width="10" Height="10" Background="{Binding Brush}" BorderBrush="Black" BorderThickness="1" Margin="3,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Owner}" FontWeight="SemiBold" Foreground="{Binding Brush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type local:SharedMarkRow}">
+                            <DockPanel Margin="22,0,0,0" Cursor="Hand" ToolTip="Klikni pro přesun mapy na marker">
+                                <Button DockPanel.Dock="Right" Content="Uložit" FontSize="10" Padding="4,0" Margin="6,0,2,0" VerticalAlignment="Center"
+                                        Visibility="{Binding SaveButtonVisibility}" Click="SharedMarkSaveButton_Click"
+                                        ToolTip="Uložit do Uložené od ostatních (shared_markers.map)"/>
+                                <TextBlock DockPanel.Dock="Right" Text="uloženo" Foreground="Gray" FontSize="10" Margin="6,0,2,0" VerticalAlignment="Center"
+                                           Visibility="{Binding SavedTextVisibility}"/>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Coordinates}" Foreground="Gray" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Image Source="{Binding Icon}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                                <TextBlock Text="{Binding Name}" Foreground="#FFD0D0D0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.Resources>
+                </ListBox>
+
+                    <!-- Varianta A (Orion UDP) - hidden on the user's request 2026-09-24, B2 is the
+                         position source now. Backend (OrionUdpPositionProvider) is untouched; to
+                         bring it back, uncomment this block and the handlers in MainWindow.xaml.cs.
+                    <TextBlock Text="VARIANTA A (ORION UDP)" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="StartOrionButton" Content="Start (UDP 27974)" Padding="8,3" Click="StartOrionButton_Click"/>
+                        <Button x:Name="StopOrionButton" Content="Stop" Padding="8,3" Margin="6,0,0,0" Click="StopOrionButton_Click" IsEnabled="False"/>
+                    </StackPanel>
+
+                    <Separator Margin="0,16" Background="#FF3F3F46"/>
+                    -->
+
+                    <!--
+                    Varianta B1 (packet proxy) - odložena (ne smazána): herní server po redirectu
+                    vyžaduje starou "login encryption" vrstvu (viz CLAUDE.md / README.md), kterou
+                    zatím neimplementujeme. Backend
+                    (NewUOAM.Positioning.Providers.PacketProxyPositionProvider) zůstává plně
+                    funkční a otestovaný - stačí tenhle blok i odpovídající handlery
+                    v MainWindow.xaml.cs odkomentovat, až se k tomu budeme chtít vrátit.
+                    <Separator Margin="0,16" Background="#FF3F3F46"/>
+                    <TextBlock Text="VARIANTA B1 (PACKET PROXY)" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                    <TextBlock Text="reálný server IP:port" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                    <TextBox x:Name="ProxyRealServerTextBox" Padding="4,4" Margin="0,0,0,6" Text="178.238.38.119:2593"/>
+                    <TextBlock Text="lokální login port" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                    <TextBox x:Name="ProxyLocalPortTextBox" Padding="4,4" Margin="0,0,0,6" Text="2593"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="StartProxyButton" Content="Start proxy" Padding="8,3" Click="StartProxyButton_Click"/>
+                        <Button x:Name="StopProxyButton" Content="Stop" Padding="8,3" Margin="6,0,0,0" Click="StopProxyButton_Click" IsEnabled="False"/>
+                    </StackPanel>
+                    -->
+            </DockPanel>
+        </Border>
+
+        <StatusBar x:Name="StatusBarBottom" DockPanel.Dock="Bottom" Background="#FF007ACC">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Nenačteno. Dvojklik do mapy = jen mapa (always on top). Kolečko myši = zoom." Foreground="White"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock x:Name="PositionText" Text="X: -  Y: -  Z: -  Map: -" Foreground="White" Margin="0,0,12,0"/>
+            </StatusBarItem>
+        </StatusBar>
+
+        <!--
+        Log panel - byl hlavně pro ladění B1 (packet proxy), viz poznámka u B1 výše. Odložen
+        spolu s B1; Log() v code-behind zatím jen píše do StatusText.
+        <DockPanel x:Name="LogPanel" DockPanel.Dock="Right" Width="420" Background="#FF1A1A1C" LastChildFill="True">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4">
+                <TextBlock Text="Log" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" Margin="4,0"/>
+                <Button x:Name="ClearLogButton" Content="Vymazat" Padding="6,1" Margin="8,0" Click="ClearLogButton_Click"/>
+            </StackPanel>
+            <TextBox x:Name="LogTextBox" IsReadOnly="True" TextWrapping="Wrap"
+                     FontFamily="Consolas" FontSize="11" Foreground="#FFD0D0D0" Background="#FF1A1A1C"
+                     BorderThickness="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
+        </DockPanel>
+        -->
+
+        <!-- Panels shown in the menu's dialogs (HostedPanelWindow). They live here, collapsed,
+             while their dialog is closed, so every control and handler keeps working exactly as
+             when they were in the side panel (settings load/save, connect state...). Opening a
+             dialog moves the panel into it; closing moves it back. -->
+        <Grid x:Name="DialogPanelStore" DockPanel.Dock="Top" Visibility="Collapsed">
+            <StackPanel x:Name="ClientSettingsContent" Margin="14">
+                <TextBlock Text="SOUBORY MAPY (.MUL / .UOP)" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <TextBox x:Name="ClientDirTextBox" Padding="4,4" Margin="0,0,0,4" TextChanged="MapFolderTextBoxes_TextChanged"/>
+                <TextBlock Foreground="Gray" FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"
+                           Text="Složka, ve které jsou soubory mapy: map0.mul nebo map0LegacyMUL.uop, statics0.mul, staidx0.mul a radarcol.mul. Obvykle je to hlavní složka klienta Ultima Online."/>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="BrowseButton" Content="Procházet…" Padding="8,3" Click="BrowseButton_Click"/>
+                    <Button x:Name="LoadMapButton" Content="Načíst mapu" Padding="8,3" Margin="6,0,0,0" Click="LoadMapButton_Click"/>
+                </StackPanel>
+
+                <Separator Margin="0,14" Background="#FF3F3F46"/>
+
+                <TextBlock Text="MARKERY" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <!-- Empty = the map files folder (MainWindow.EffectiveMarkersDirectory); the hint
+                     overlaid on the empty box shows which folder that is. -->
+                <Grid Margin="0,0,0,4">
+                    <TextBox x:Name="MarkersDirTextBox" Padding="4,4" TextChanged="MapFolderTextBoxes_TextChanged"/>
+                    <TextBlock x:Name="MarkersDirPlaceholder" Foreground="Gray" FontStyle="Italic" Margin="7,0,7,0"
+                               VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"/>
+                </Grid>
+                <TextBlock Foreground="Gray" FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"
+                           Text="Složka se soubory markerů .map (formát staré UOAM) a .csv. Načtou se všechny tyto soubory přímo v té složce, bez podsložek. Když necháš pole prázdné, použije se složka souborů mapy."/>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Button x:Name="BrowseMarkersButton" Content="Procházet…" Padding="8,3" Click="BrowseMarkersButton_Click"/>
+                    <Button x:Name="LoadMarkersButton" Content="Načíst markery" Padding="8,3" Margin="6,0,0,0" Click="LoadMarkersButton_Click"/>
+                </StackPanel>
+                <CheckBox x:Name="ShowMarkersCheckBox" Content="Zobrazit markery" Foreground="White" IsChecked="True"
+                          Checked="ShowMarkersCheckBox_Changed" Unchecked="ShowMarkersCheckBox_Changed"/>
+
+                <Separator Margin="0,14" Background="#FF3F3F46"/>
+
+                <!-- Moved here from the side panel 2026-09-28. -->
+                <TextBlock Text="ZOBRAZENÍ" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <Button x:Name="ToggleRotationButton" Content="Pohled: otočený 45°" Padding="8,3"
+                        HorizontalAlignment="Left" Margin="0,0,0,6" Click="ToggleRotationButton_Click"/>
+                <StackPanel Orientation="Horizontal">
+                    <CheckBox x:Name="ShowCoordinatesCheckBox" Content="Souřadnice" Foreground="White"
+                              Checked="OverlayCheckBox_Changed" Unchecked="OverlayCheckBox_Changed"/>
+                    <CheckBox x:Name="ShowCompassCheckBox" Content="Světové strany" Foreground="White" Margin="14,0,0,0"
+                              Checked="OverlayCheckBox_Changed" Unchecked="OverlayCheckBox_Changed"/>
+                </StackPanel>
+                <!-- Your own marker's color, only on your map (2026-09-29). PlacementTarget is set
+                     in code, like PlayerColorPopup's. -->
+                <TextBlock Text="Barva mé postavy (čtvereček a šipka, vidíš jen ty)" Foreground="Gray" FontSize="11" Margin="0,10,0,2" TextWrapping="Wrap"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="SelfMarkerColorButton" Padding="6,3" Click="SelfMarkerColorButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Border x:Name="SelfMarkerColorSwatch" Width="16" Height="16" BorderBrush="Black" BorderThickness="1" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="SelfMarkerColorText" VerticalAlignment="Center"/>
+                            <TextBlock Text="  ▾" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="SelfMarkerColorResetButton" Content="Výchozí (červená)" Padding="8,3" Margin="6,0,0,0" Click="SelfMarkerColorReset_Click"/>
+                </StackPanel>
+                <Popup x:Name="SelfMarkerColorPopup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <Border Background="#FF2D2D30" BorderBrush="#FF5A5A60" BorderThickness="1" Padding="8">
+                        <StackPanel>
+                            <ItemsControl x:Name="SelfMarkerColorGrid" ItemTemplate="{StaticResource ColorSwatchTemplate}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="12"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <TextBlock Text="Vlastní barva (#RRGGBB)" Foreground="Gray" FontSize="11" Margin="0,8,0,2"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="SelfMarkerColorHexTextBox" Width="90" Padding="4,2" KeyDown="SelfMarkerColorHexTextBox_KeyDown"/>
+                                <Button Content="Použít" Padding="8,2" Margin="6,0,0,0" Click="SelfMarkerColorHexApply_Click"/>
+                            </StackPanel>
+                            <TextBlock x:Name="SelfMarkerColorHexError" Foreground="#FFFF8A80" FontSize="11" Margin="0,4,0,0"
+                                       TextWrapping="Wrap" MaxWidth="260" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </StackPanel>
+
+            <StackPanel x:Name="OnlineSettingsContent" Margin="14">
+                <TextBlock Text="Adresa serveru (host:port)" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                <TextBox x:Name="RelayServerTextBox" Padding="4,4" Margin="0,0,0,8"/>
+                <TextBlock Text="Zobrazované jméno" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                <TextBox x:Name="DisplayNameTextBox" Padding="4,4" Margin="0,0,0,8"/>
+                <TextBlock Text="Barva (jméno a značka na mapě, jméno a text v chatu)" Foreground="Gray" FontSize="11" Margin="0,0,0,2" TextWrapping="Wrap"/>
+                <!-- Color picker: a swatch button opening a popup grid (PlayerColors.Palette,
+                     generated by perceived brightness so every entry stays readable on the
+                     dark map/chat) plus a custom #RRGGBB field with the same readability check.
+                     PlacementTarget is set in code: an ElementName binding wouldn't resolve once
+                     the panel is moved into a dialog window (different name scope). -->
+                <Button x:Name="PlayerColorButton" HorizontalAlignment="Left" Padding="6,3" Margin="0,0,0,8" Click="PlayerColorButton_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Border x:Name="PlayerColorSwatch" Width="16" Height="16" BorderBrush="Black" BorderThickness="1" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="PlayerColorText" VerticalAlignment="Center"/>
+                        <TextBlock Text="  ▾" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Popup x:Name="PlayerColorPopup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <Border Background="#FF2D2D30" BorderBrush="#FF5A5A60" BorderThickness="1" Padding="8">
+                        <StackPanel>
+                            <ItemsControl x:Name="PlayerColorGrid" ItemTemplate="{StaticResource ColorSwatchTemplate}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="12"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <TextBlock Text="Vlastní barva (#RRGGBB)" Foreground="Gray" FontSize="11" Margin="0,8,0,2"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="PlayerColorHexTextBox" Width="90" Padding="4,2" KeyDown="PlayerColorHexTextBox_KeyDown"/>
+                                <Button Content="Použít" Padding="8,2" Margin="6,0,0,0" Click="PlayerColorHexApply_Click"/>
+                            </StackPanel>
+                            <TextBlock x:Name="PlayerColorHexError" Foreground="#FFFF8A80" FontSize="11" Margin="0,4,0,0"
+                                       TextWrapping="Wrap" MaxWidth="260" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+                <TextBlock Text="Heslo místnosti" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                <TextBox x:Name="RoomPasswordTextBox" Padding="4,4" Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="StartRelayButton" Content="Připojit" Padding="8,3" Click="StartRelayButton_Click"/>
+                    <Button x:Name="StopRelayButton" Content="Odpojit" Padding="8,3" Margin="6,0,0,0" Click="StopRelayButton_Click" IsEnabled="False"/>
+                    <Button x:Name="OpenAdminButton" Content="Admin…" Padding="8,3" Margin="6,0,0,0" Click="OpenAdminButton_Click"/>
+                </StackPanel>
+                <!-- In-game chat display via the UOAssist API (how old UOAM did it) - see
+                     UoAssistTextSender. Targets the client tracked in Varianta B2. -->
+                <CheckBox x:Name="ShowChatInGameCheckBox" Content="Zobrazovat chat mapy ve hře" Foreground="White" Margin="0,10,0,0"
+                          IsChecked="True" Checked="ShowChatInGameCheckBox_Changed" Unchecked="ShowChatInGameCheckBox_Changed"
+                          ToolTip="Zprávy z chatu mapy se ukážou v okně Ultimy vlevo dole jako systémové zprávy (vidíš je jen ty). Používá rozhraní UOAssist, které nabízí Orion Assistant - stejně jako stará UOAM."/>
+                <CheckBox x:Name="PanicSoundCheckBox" Content="Zvuk při panice spoluhráče" Foreground="White" Margin="0,6,0,0"
+                          IsChecked="True" Checked="PanicSoundCheckBox_Changed" Unchecked="PanicSoundCheckBox_Changed"
+                          ToolTip="Když někdo v místnosti zapne Panic! (ve hře -panic, nebo v menu mapy), mapa opakovaně pípne, dokud panic trvá."/>
+                <CheckBox x:Name="AutoConnectRelayCheckBox" Content="Připojit automaticky při spuštění" Foreground="White" Margin="0,6,0,0"
+                          Checked="AutoConnectRelayCheckBox_Changed" Unchecked="AutoConnectRelayCheckBox_Changed"
+                          ToolTip="Po spuštění se mapa sama připojí k místnosti s výše uloženou adresou, jménem a heslem. Chyby se ukážou ve stavovém řádku; když server neodpovídá (třeba hned po zapnutí PC), zkusí to ještě několikrát."/>
+                <CheckBox x:Name="ShowUnreadChatCheckBox" Content="Zobrazovat počet nepřečtených zpráv na mapě" Foreground="White" Margin="0,6,0,0"
+                          IsChecked="True" Checked="ShowUnreadChatCheckBox_Changed" Unchecked="ShowUnreadChatCheckBox_Changed"
+                          ToolTip="Zprávy, které přišly při zavřeném chatu, se počítají vpravo nahoře na mapě. Kliknutím na počítadlo otevřeš chat. Chat si pamatuje všechno od připojení, dokud se neodpojíš."/>
+                <TextBlock Foreground="Gray" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                           Text="Ve hře: -c zpráva (chat mapy), -c jméno>zpráva (soukromě), -who (kdo je v místnosti), -t jméno, jméno (tracknutí hráči), -panic, -unpanic. Mezerník v mapě zapne/vypne Panic!"/>
+
+                <Separator Margin="0,12" Background="#FF3F3F46"/>
+                <!-- Track reports ("-t", MainWindow.Tracking.cs). The radio buttons use their own
+                     GroupName: the panel moves between windows, and a name scope change must not
+                     regroup them. -->
+                <TextBlock Text="TRACKING" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <CheckBox x:Name="ShowTrackMapCheckBox" Content="Zobrazovat track mapu" Foreground="White"
+                          IsChecked="True" Checked="TrackMapSetting_Changed" Unchecked="TrackMapSetting_Changed"
+                          ToolTip="Druhá malá mapa, která ukáže místo posledního tracku (-t) a jména tracknutých hráčů. Zůstane tam, dokud nepřijde další track nebo ji nezavřeš."/>
+                <RadioButton x:Name="TrackMapPopupRadio" GroupName="TrackMapMode" Content="Otevřít navrchu, když někdo trackne" Foreground="White"
+                             Margin="18,4,0,0" IsChecked="True" Checked="TrackMapSetting_Changed"/>
+                <RadioButton x:Name="TrackMapAlwaysRadio" GroupName="TrackMapMode" Content="Nechat otevřenou pořád" Foreground="White"
+                             Margin="18,2,0,0" Checked="TrackMapSetting_Changed"/>
+                <CheckBox x:Name="TrackSoundCheckBox" Content="Zvuk, když někdo trackne" Foreground="White" Margin="0,6,0,0"
+                          IsChecked="True" Checked="TrackSoundCheckBox_Changed" Unchecked="TrackSoundCheckBox_Changed"/>
+            </StackPanel>
+        </Grid>
+
+        <Border x:Name="MapBorder" Background="Black" ClipToBounds="True"
+                Focusable="True" FocusVisualStyle="{x:Null}"
+                MouseWheel="MapBorder_MouseWheel"
+                MouseLeftButtonDown="MapBorder_MouseLeftButtonDown"
+                MouseLeftButtonUp="MapBorder_MouseLeftButtonUp"
+                MouseMove="MapBorder_MouseMove"
+                LostMouseCapture="MapBorder_LostMouseCapture"
+                MouseRightButtonUp="MapBorder_MouseRightButtonUp"
+                SizeChanged="MapBorder_SizeChanged"
+                PreviewKeyDown="MapBorder_PreviewKeyDown"
+                PreviewTextInput="MapBorder_PreviewTextInput">
+            <Grid>
+                <Image x:Name="MapImage" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <!-- Static landmark markers (UOAM/Orion-compatible .map/.csv files + icon set) -
+                     deliberately NOT IsHitTestVisible="False" like the other overlays: it needs to
+                     receive mouse-hover so each icon can show its name. Positioned in code-behind
+                     (MainWindow.UpdateMarkersOverlay). -->
+                <Canvas x:Name="MarkersCanvas">
+                    <!-- Custom hover label, NOT a native WPF ToolTip - see MainWindow's
+                         ShowMarkerHoverLabel for why: ToolTipService's popup delay-timer can get
+                         starved indefinitely by a continuously-updating live position feed, so it
+                         may never fire at all. MouseEnter/MouseLeave are ordinary input events
+                         processed immediately as part of normal hit-testing, not a deferred timer,
+                         so this shows/hides reliably regardless of how busy the map redraw loop is. -->
+                    <!-- ZIndex: the icons are added after this label, so without it the label was
+                         drawn under any neighbouring icon it overlapped (user report 2026-09-28). -->
+                    <TextBlock x:Name="MarkerHoverLabel" Text="" Foreground="White" FontWeight="Bold" FontSize="13"
+                               Panel.ZIndex="1000"
+                               Visibility="Collapsed" IsHitTestVisible="False" Background="#CC000000" Padding="3,1">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/>
+                        </TextBlock.Effect>
+                    </TextBlock>
+                </Canvas>
+
+                <!-- Other players' markers (multiplayer relay) - plain WPF shapes/text positioned
+                     in code-behind (MainWindow.UpdateRemotePlayerOverlay), not drawn into the
+                     bitmap, same reasoning as the coordinate/compass overlays: stays crisp text at
+                     any zoom and doesn't need to go through the render-cache machinery. -->
+                <!-- "Drop or Pickup Marker" / shared marker: target dot + line from the player,
+                     positioned in MainWindow.UpdateDropMarkerOverlay. Below the remote players. -->
+                <Canvas x:Name="DropMarkersCanvas" IsHitTestVisible="False"/>
+
+                <Canvas x:Name="RemotePlayersCanvas" IsHitTestVisible="False"/>
+
+                <!-- Your own character's edge arrow: with Track Player off and the character out
+                     of view, it sits at the map's edge and points toward them
+                     (MainWindow.UpdateSelfArrow). Same shape as the other players' arrows, in
+                     your own marker's color (Mapa > Nastavení). -->
+                <!-- Hit-testable only for the self arrow (a click brings the map back to your
+                     character); the canvas itself has no background, so other clicks reach the map. -->
+                <Canvas>
+                    <!-- "Go to location...": a crosshair on the target tile for a few seconds after
+                         the map flies there (MainWindow.UpdateGoToCrosshair). The inner Canvas is
+                         placed at the tile's center; the paths are drawn around its (0,0). -->
+                    <Canvas x:Name="GoToCrosshair" Visibility="Collapsed" IsHitTestVisible="False">
+                        <Path Data="M -12,0 L -4,0 M 4,0 L 12,0 M 0,-12 L 0,-4 M 0,4 L 0,12" Stroke="Black" StrokeThickness="4"/>
+                        <Path Data="M -12,0 L -4,0 M 4,0 L 12,0 M 0,-12 L 0,-4 M 0,4 L 0,12" Stroke="Yellow" StrokeThickness="2"/>
+                    </Canvas>
+                    <Polygon x:Name="SelfArrow" Points="0,-7 16,0 0,7" Fill="Red" Stroke="Black" StrokeThickness="1"
+                             RenderTransformOrigin="0.5,0.5" Visibility="Collapsed" Cursor="Hand"
+                             ToolTip="Zpět na mou postavu" MouseLeftButtonDown="SelfArrow_MouseLeftButtonDown">
+                        <Polygon.RenderTransform>
+                            <RotateTransform x:Name="SelfArrowRotation"/>
+                        </Polygon.RenderTransform>
+                    </Polygon>
+                </Canvas>
+
+                <!-- Panic! (old UOAM): flashing red frame while a room mate panics
+                     (MainWindow.PanicBlinkTick), "PANIC!" while you do yourself. -->
+                <Border x:Name="PanicFlashBorder" BorderBrush="Red" BorderThickness="5" IsHitTestVisible="False" Visibility="Collapsed"/>
+                <TextBlock x:Name="PanicStatusText" Text="PANIC!" Foreground="Red" FontWeight="Bold" FontSize="18"
+                           HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0"
+                           Visibility="Collapsed" IsHitTestVisible="False">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+
+                <!-- Distance to the dropped marker(s), bottom-right like old UOAM ("62 tiles");
+                     right margin clears the compass letter in the same corner. -->
+                <TextBlock x:Name="DropDistanceText" Text="" FontWeight="Bold" FontSize="14" TextAlignment="Right"
+                           Margin="0,0,36,8" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                           Visibility="Collapsed" IsHitTestVisible="False">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+
+                <!-- Coordinate readout, old-UOAM style ("Felucca 1600,1675") - toggled by ShowCoordinatesCheckBox.
+                     Left margin is deliberately large enough to clear the compass letter in the same
+                     corner (CompassTopLeft) when both overlays are on at once - they used to sit at the
+                     exact same spot and overlap. -->
+                <TextBlock x:Name="CoordinatesOverlay" Text="" Foreground="White" FontWeight="Bold" FontSize="14"
+                           Margin="40,9,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           Visibility="Collapsed" IsHitTestVisible="False">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+
+                <!-- Compass letters in the four corners - which letter goes where depends on
+                     render mode (rotated 45° vs north-up), set in code-behind (UpdateCompassOverlay). -->
+                <TextBlock x:Name="CompassTopLeft" Text="" Foreground="White" FontWeight="Bold" FontSize="16"
+                           Margin="10,6,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           Visibility="Collapsed" IsHitTestVisible="False">
+                    <TextBlock.Effect><DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/></TextBlock.Effect>
+                </TextBlock>
+                <!-- Top right: the unread-chat counter (MainWindow.UpdateChatUnreadBadge) and the
+                     compass letter share one row, the counter left of the letter, so however wide
+                     the letter ("N"/"NE") is they can't overlap. Clicking the counter opens the chat. -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,10,0">
+                    <Border x:Name="ChatUnreadBadge" Background="#E6007ACC" BorderBrush="Black" BorderThickness="1" CornerRadius="3"
+                            Padding="4,0,5,1" Margin="0,2,6,0" VerticalAlignment="Top" Cursor="Hand" Visibility="Collapsed"
+                            MouseLeftButtonDown="ChatUnreadBadge_MouseLeftButtonDown">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✉" FontFamily="Segoe UI Symbol" Foreground="White" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ChatUnreadText" Foreground="White" FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="CompassTopRight" Text="" Foreground="White" FontWeight="Bold" FontSize="16"
+                               VerticalAlignment="Top" Visibility="Collapsed" IsHitTestVisible="False">
+                        <TextBlock.Effect><DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/></TextBlock.Effect>
+                    </TextBlock>
+                </StackPanel>
+                <TextBlock x:Name="CompassBottomLeft" Text="" Foreground="White" FontWeight="Bold" FontSize="16"
+                           Margin="10,0,0,6" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                           Visibility="Collapsed" IsHitTestVisible="False">
+                    <TextBlock.Effect><DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/></TextBlock.Effect>
+                </TextBlock>
+                <TextBlock x:Name="CompassBottomRight" Text="" Foreground="White" FontWeight="Bold" FontSize="16"
+                           Margin="0,0,10,6" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                           Visibility="Collapsed" IsHitTestVisible="False">
+                    <TextBlock.Effect><DropShadowEffect Color="Black" Direction="315" ShadowDepth="1" BlurRadius="2" Opacity="0.9"/></TextBlock.Effect>
+                </TextBlock>
+
+                <!-- Toggles SettingsPanel - declared last so it's always the topmost element,
+                     never covered by markers/overlays. Hidden in map-only mode along with the
+                     panel itself (SetMapOnlyMode). -->
+                <!-- Top margin 32: below the top-left compass letter (CompassTopLeft), which it
+                     used to cover (user report 2026-09-28). -->
+                <Button x:Name="SettingsToggleButton" Content="☰" Width="32" Height="32" Padding="0"
+                        FontSize="16" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,32,0,0"
+                        ToolTip="Nastavení" Click="SettingsToggleButton_Click"/>
+            </Grid>
+        </Border>
+    </DockPanel>
+</Window>

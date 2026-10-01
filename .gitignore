@@ -1,0 +1,18 @@
+# Secrets - never commit
+*.key
+pass_for_adminTool_NEMAZAT.txt
+
+# Build output
+bin/
+obj/
+publish/
+
+# IDE / local
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Local-only files
+_claude_memory/
+set_client_dir.json

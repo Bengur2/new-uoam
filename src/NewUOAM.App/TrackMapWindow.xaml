@@ -1,0 +1,46 @@
+<Window x:Class="NewUOAM.App.TrackMapWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="new UOAM - Track" Width="360" Height="360" MinWidth="180" MinHeight="160"
+        ResizeMode="CanResize" ShowInTaskbar="True" Background="#FF1E1E1E">
+    <!-- Where the last "-t" track report was made, with the tracked names (MainWindow.OnTrackReported).
+         Double-click = map-only mode (no title bar, drag to move, grip to resize); the ✕ button
+         top-right closes the window in both modes. Mouse wheel = zoom. -->
+    <Border x:Name="MapBorder" ClipToBounds="True" Background="#FF101012"
+            MouseLeftButtonDown="MapBorder_MouseLeftButtonDown" MouseWheel="MapBorder_MouseWheel"
+            SizeChanged="MapBorder_SizeChanged">
+        <Grid>
+            <Image x:Name="MapImage" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+            <!-- The tracking spot (always the center): a ring, and the names below it. -->
+            <Canvas x:Name="Overlay" IsHitTestVisible="False">
+                <Ellipse x:Name="SpotRing" Width="18" Height="18" Stroke="Yellow" StrokeThickness="2" Visibility="Collapsed">
+                    <Ellipse.Effect><DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="3" Opacity="1"/></Ellipse.Effect>
+                </Ellipse>
+            </Canvas>
+            <!-- The names: limited to the space below the ring (TrackMapWindow.Redraw sets MaxHeight),
+                 scrollable with the mouse wheel when there are more - the window can't always grow,
+                 the game takes most of the screen. Its own hit-testable canvas (no background), so
+                 the wheel over the names scrolls them and elsewhere zooms the map. -->
+            <Canvas>
+                <Border x:Name="NamesBox" Background="#CC000000" CornerRadius="3" Padding="5,2" Visibility="Collapsed">
+                    <ScrollViewer x:Name="NamesScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock x:Name="NamesText" Foreground="White" FontWeight="Bold" FontSize="12" TextWrapping="Wrap" MaxWidth="260"/>
+                    </ScrollViewer>
+                </Border>
+            </Canvas>
+
+            <!-- Who tracked, where and when ("před 2 min"). -->
+            <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,6,40,0" Background="#AA000000"
+                    CornerRadius="3" Padding="5,2" IsHitTestVisible="False">
+                <TextBlock x:Name="HeaderText" Foreground="#FFDDDDDD" FontSize="12" TextWrapping="Wrap" Text="Zatím žádný track."/>
+            </Border>
+
+            <!-- Close, in normal and map-only mode alike (user's request). -->
+            <Button x:Name="CloseButton" Content="✕" Width="26" Height="26" Padding="0" FontSize="13"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                    ToolTip="Zavřít track mapu" Click="CloseButton_Click"/>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,76 @@
+<Window x:Class="NewUOAM.App.ChatWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="new UOAM - Chat" Width="360" Height="420" MinWidth="260" MinHeight="180"
+        ResizeMode="CanResize"
+        Background="#FF1E1E1E">
+    <!-- Grid with a star-sized message row and an auto-sized input row: the message list grows
+         and shrinks with the window, the input row always keeps just the height it needs -
+         satisfies "prvky by se měly uzpůsobovat velikosti okna" (elements adapt to window size)
+         while MinWidth/MinHeight above stop it collapsing into something unusable. -->
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Double-click here toggles compact mode (no title bar, always on top); in compact mode
+             a single click-drag here moves the window. See ChatWindow.MessagesBorder_PreviewMouseLeftButtonDown. -->
+        <Border x:Name="MessagesBorder" Grid.Row="0" Background="#FF2D2D30" BorderBrush="#FF3F3F46" BorderThickness="1" Margin="0,0,0,8"
+                PreviewMouseLeftButtonDown="MessagesBorder_PreviewMouseLeftButtonDown">
+            <ScrollViewer x:Name="MessagesScroll" VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="MessagesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <!-- Player messages: name (bold) and text both in the sender's chosen
+                                 color. System notices (join/leave) have an empty SenderPrefix and
+                                 render as gray italics instead - see ChatMessageViewModel. -->
+                            <TextBlock TextWrapping="Wrap" Margin="6,2" FontSize="12"
+                                       Foreground="{Binding Brush, Mode=OneTime}" FontStyle="{Binding FontStyle, Mode=OneTime}">
+                                <Run Text="{Binding TimeText, Mode=OneTime}" Foreground="{Binding TimeBrush, Mode=OneTime}" FontStyle="Normal" FontSize="11"/><Run Text="{Binding SenderPrefix, Mode=OneTime}" FontWeight="Bold"/><Run Text="{Binding Text, Mode=OneTime}"/>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <!-- Enter sends (no Send button since 2026-09-29, user's request). -->
+            <TextBox x:Name="ChatInputTextBox" Grid.Column="0" Padding="6,5" VerticalContentAlignment="Center"
+                     KeyDown="ChatInputTextBox_KeyDown" ToolTip="Enter odešle zprávu"/>
+            <!-- Clears the list on this map only; nobody else's chat changes. -->
+            <!-- Who's in the room, with distance/direction (like "-who" in the game). -->
+            <Button x:Name="PlayersButton" Grid.Column="1" Content="👥" FontFamily="Segoe UI Emoji" Width="30" Margin="4,0,0,0"
+                    ToolTip="Hráči v místnosti" Click="PlayersButton_Click"/>
+            <Popup x:Name="PlayersPopup" PlacementTarget="{Binding ElementName=PlayersButton}" Placement="Top"
+                   StaysOpen="False" AllowsTransparency="True" Closed="PlayersPopup_Closed">
+                <Border Background="#FF2D2D30" BorderBrush="#FF5A5A60" BorderThickness="1" Padding="8,6" MinWidth="180">
+                    <StackPanel>
+                        <TextBlock Text="HRÁČI V MÍSTNOSTI" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="PlayersEmptyText" Text="Nejsi připojen(a)." Foreground="Gray" FontStyle="Italic" Visibility="Collapsed"/>
+                        <ItemsControl x:Name="PlayersList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,1" FontSize="12">
+                                        <Run Text="{Binding Name, Mode=OneTime}" Foreground="{Binding Brush, Mode=OneTime}" FontWeight="Bold"/><Run Text="  "/><Run Text="{Binding Detail, Mode=OneTime}" Foreground="#FFB0B0B0"/>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Popup>
+            <Button x:Name="ClearButton" Grid.Column="2" Content="🗑" FontFamily="Segoe UI Emoji" Width="30" Margin="4,0,0,0"
+                    ToolTip="Vymazat zprávy (jen u tebe, ostatním zůstanou)" Click="ClearButton_Click"/>
+        </Grid>
+    </Grid>
+</Window>

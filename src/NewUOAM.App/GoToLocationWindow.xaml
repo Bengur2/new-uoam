@@ -1,0 +1,25 @@
+<Window x:Class="NewUOAM.App.GoToLocationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Go to location" Width="260" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="#FF1E1E1E">
+    <!-- "Go to location..." from the map's context menu: X/Y of a tile on the facet on screen. -->
+    <StackPanel Margin="14">
+        <TextBlock Text="Position:" Foreground="White" Margin="0,0,0,2"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="X:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox x:Name="XTextBox" Width="60" Padding="4,3" TextChanged="Input_Changed"/>
+            <TextBlock Text="Y:" Foreground="White" VerticalAlignment="Center" Margin="12,0,4,0"/>
+            <TextBox x:Name="YTextBox" Width="60" Padding="4,3" TextChanged="Input_Changed"/>
+        </StackPanel>
+
+        <TextBlock x:Name="ErrorText" Foreground="#FFFF7070" FontSize="11" TextWrapping="Wrap"
+                   Margin="0,0,0,8" Visibility="Collapsed"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="OK" Width="80" Padding="0,3" IsDefault="True" Click="OkButton_Click"/>
+            <Button Content="Cancel" Width="80" Padding="0,3" Margin="8,0,0,0" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

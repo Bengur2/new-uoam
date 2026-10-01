@@ -1,0 +1,332 @@
+// TrackPlayers.oajs - Tracking > Players, and report who was found to the new UOAM map.
+//
+// Runs inside OrionUO (Scripts tab: pick TrackPlayers() in the "Handling" dropdown and Start,
+// or bind it to a hotkey). It:
+//   1. uses the Tracking skill,
+//   2. picks "Players" in the "Tracking" menu (Animals / Monsters / Humans / Players),
+//   3. if the server answers "You see no evidence of people in the area." -> nobody, done;
+//      if a second "Tracking" menu comes with names -> says "-t Name1, Name2" in the game.
+//      Orion Assistant takes that line as a command for the map (it's registered by the map's
+//      NewUOAM.UoaBridge), so nothing is said aloud; the map sends the names to the room.
+// The menu with the names is left OPEN on purpose: click a name in it to track that player.
+// The next run closes any Tracking menus still open before it starts.
+//
+// Names are separated by ", " - a name can contain spaces ("Sir Lancelot"). A long list goes out
+// as several "-t" lines; the map joins them into one track.
+//
+// Ignored players (friends...) are left out of every report. The list is kept in
+// TrackPlayers_ignore.txt next to this script (one name per line, can be edited by hand):
+//   TrackIgnoreAdd()        - type the name(s) into the game's chat line (comma-separated)
+//   TrackIgnoreAddTarget()  - click the player
+//   TrackIgnoreRemove()     - type the name(s) to take off the list
+//   TrackIgnoreList()       - show the list
+//
+// FIRST RUN: start TrackPlayersTest() once. It says "-who" the same way. If the map answers
+// with the list of players, the game passes script-said commands to the map and TrackPlayers()
+// is safe to use. If your character says "-who" aloud instead, don't use TrackPlayers() - it would
+// say the names aloud too.
+
+function TrackPlayers()
+{
+    var TIMEOUT_MS = 3000;
+
+    // 0) Close Tracking menus left open from earlier runs (the name menu is left open on
+    //    purpose, see below), so an old one can't be mistaken for the new answer.
+    CloseTrackingMenus();
+
+    var t0 = Orion.Now();
+    Orion.UseSkill("Tracking");
+
+    // 1) The category menu. Picked directly, not through an Orion.WaitMenu hook: a hook could
+    //    also answer (and so close) the second menu, which has to stay open.
+    //    Seen live: only the first run picked "Players". Likely causes: Orion reporting the new
+    //    menu as already answered (Replayed) because Sphere reuses its serial/id, or "lastmenu"
+    //    still returning the previous run's menu before the new one arrives. So no Replayed()
+    //    check, and a new menu is detected by the count of unanswered menus (CloseTrackingMenus
+    //    has just brought it to zero).
+    var categories = WaitNewTrackingMenu(false, t0, TIMEOUT_MS);
+    if (categories == null)
+    {
+        if (Orion.InJournal("must wait", "", "0", "any", t0, 0))
+            Orion.Print("[NewUOAM] Tracking: skill jeste neni pripraveny, zkus to za chvili.");
+        else
+        {
+            Orion.Print("[NewUOAM] Tracking: menu s kategoriemi se neobjevilo (vypis v TextWindow).");
+            DumpMenus("po UseSkill");
+        }
+        return;
+    }
+    var t1 = Orion.Now();
+    categories.Select("Players");
+    // If the category menu is still unanswered shortly after, try Orion's own selection by name.
+    Orion.Wait(300);
+    if (StillCategoryMenuOpen())
+    {
+        Orion.SelectMenu("Tracking", "Players");
+        Orion.Wait(300);
+    }
+
+    // 2) Either nobody ("You see no evidence of people in the area.") or the menu with names.
+    var deadline = t1 + TIMEOUT_MS;
+    while (Orion.Now() < deadline)
+    {
+        if (Orion.InJournal("You see no evidence of people", "", "0", "any", t1, 0))
+        {
+            Orion.Print("[NewUOAM] Tracking: nikoho jsi netrackl.");
+            return;
+        }
+        var list = Orion.MenuCount() > 0 ? FindTrackingMenu(true) : null;
+        if (list != null)
+        {
+            var ignored = LoadIgnoreList();
+            var names = [], skipped = 0;
+            for (var i = 0; i < list.ItemsCount(); i++)
+            {
+                var name = Trim(list.ItemName(i));
+                if (name.length == 0) continue;
+                if (IndexOfName(ignored, name) >= 0) skipped++;
+                else names.push(name);
+            }
+            if (names.length == 0)
+            {
+                Orion.Print(skipped > 0
+                    ? "[NewUOAM] Tracking: jen ignorovani hraci (" + skipped + "), nic se neposila."
+                    : "[NewUOAM] Tracking: menu je prazdne.");
+                return;
+            }
+            SayTrack(names);
+            if (skipped > 0) Orion.Print("[NewUOAM] Tracking: " + skipped + " ignorovanych vynechano.");
+            return; // the menu stays open - click a name to track that player
+        }
+        Orion.Wait(100);
+    }
+    Orion.Print("[NewUOAM] Tracking: po vyberu Players neprisla odpoved (vypis v TextWindow).");
+    DumpMenus("po vyberu Players");
+}
+
+// Says the names as "-t a, b, c" lines of at most MAX_LINE characters (a long list doesn't fit in
+// one line of speech), a moment apart. The map joins lines that arrive within a second of each
+// other into one track (MainWindow.HandleTrackCommand).
+function SayTrack(names)
+{
+    var MAX_LINE = 90;
+    var line = "";
+    for (var i = 0; i < names.length; i++)
+    {
+        if (line.length > 0 && ("-t " + line + ", " + names[i]).length > MAX_LINE)
+        {
+            Orion.Say("-t " + line);
+            Orion.Wait(300);
+            line = "";
+        }
+        line = line.length > 0 ? line + ", " + names[i] : names[i];
+    }
+    if (line.length > 0) Orion.Say("-t " + line);
+}
+
+// ---- Ignored players: never reported by TrackPlayers (friends, your own characters...).
+// Saved in TrackPlayers_ignore.txt next to this script, one name per line - it can be edited by
+// hand too. Names match ignoring upper/lower case. ----
+
+// Type one or more names (comma-separated) into the game's chat line; the line is caught by
+// Orion, not said aloud. Careful: if you type nothing within a minute, the next line you type
+// goes to the game as normal speech.
+function TrackIgnoreAdd()
+{
+    var text = Orion.InputText(60000, "Jmeno hrace pro ignorovani (vic jmen oddel carkou):");
+    var added = AddIgnored(SplitNames(text));
+    Orion.Print("[NewUOAM] Tracking: pridano do ignorovanych: " + (added.length > 0 ? added.join(", ") : "nic"));
+}
+
+// Click a player (their character must be on screen).
+function TrackIgnoreAddTarget()
+{
+    Orion.Print("[NewUOAM] Tracking: klikni na hrace, ktery se nema hlasit.");
+    if (Orion.WaitForAddObject("trackIgnoreTarget", "30000") != 1)
+    {
+        Orion.Print("[NewUOAM] Tracking: zruseno.");
+        return;
+    }
+    var obj = Orion.FindObject("trackIgnoreTarget");
+    var name = obj ? Trim(obj.Name()) : "";
+    if (name.length == 0)
+    {
+        Orion.Print("[NewUOAM] Tracking: jmeno hrace se nepodarilo zjistit.");
+        return;
+    }
+    var added = AddIgnored([name]);
+    Orion.Print("[NewUOAM] Tracking: " + (added.length > 0 ? name + " pridan(a) do ignorovanych." : name + " uz je v ignorovanych."));
+}
+
+// Type the name(s) to remove, like TrackIgnoreAdd.
+function TrackIgnoreRemove()
+{
+    var names = SplitNames(Orion.InputText(60000, "Jmeno hrace, ktery se ma zase hlasit (vic jmen oddel carkou):"));
+    var list = LoadIgnoreList(), removed = [];
+    for (var i = 0; i < names.length; i++)
+    {
+        var at = IndexOfName(list, names[i]);
+        if (at >= 0) { removed.push(list[at]); list.splice(at, 1); }
+    }
+    SaveIgnoreList(list);
+    Orion.Print("[NewUOAM] Tracking: odebrano z ignorovanych: " + (removed.length > 0 ? removed.join(", ") : "nic"));
+}
+
+function TrackIgnoreList()
+{
+    var list = LoadIgnoreList();
+    Orion.Print("[NewUOAM] Tracking: ignorovani (" + list.length + "): " + (list.length > 0 ? list.join(", ") : "nikdo"));
+}
+
+function AddIgnored(names)
+{
+    var list = LoadIgnoreList(), added = [];
+    for (var i = 0; i < names.length; i++)
+        if (IndexOfName(list, names[i]) < 0) { list.push(names[i]); added.push(names[i]); }
+    if (added.length > 0) SaveIgnoreList(list);
+    return added;
+}
+
+function IgnoreFilePath()
+{
+    var p = Orion.CurrentScriptDirPath();
+    if (!p) return "TrackPlayers_ignore.txt";
+    var last = p.charAt(p.length - 1);
+    if (last != "/" && last != "\\") p += "/";
+    return p + "TrackPlayers_ignore.txt";
+}
+
+function LoadIgnoreList()
+{
+    var list = [];
+    var f = Orion.NewFile();
+    if (!f || !f.Open(IgnoreFilePath(), true)) return list;
+    var text = String(f.ReadAll() || "");
+    f.Close();
+    var lines = text.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++)
+    {
+        var name = Trim(lines[i]);
+        if (name.length > 0 && IndexOfName(list, name) < 0) list.push(name);
+    }
+    return list;
+}
+
+function SaveIgnoreList(list)
+{
+    var f = Orion.NewFile();
+    if (!f)
+    {
+        Orion.Print("[NewUOAM] Tracking: soubor " + IgnoreFilePath() + " nejde ulozit.");
+        return;
+    }
+    f.Remove(IgnoreFilePath()); // start from an empty file, whatever Open does with an existing one
+    if (!f.Open(IgnoreFilePath()))
+    {
+        Orion.Print("[NewUOAM] Tracking: soubor " + IgnoreFilePath() + " nejde ulozit.");
+        return;
+    }
+    for (var i = 0; i < list.length; i++) f.WriteLine(list[i]);
+    f.Close();
+}
+
+function SplitNames(text)
+{
+    var parts = String(text || "").split(","), names = [];
+    for (var i = 0; i < parts.length; i++)
+    {
+        var name = Trim(parts[i]);
+        if (name.length > 0) names.push(name);
+    }
+    return names;
+}
+
+function IndexOfName(list, name)
+{
+    var lower = String(name).toLowerCase();
+    for (var i = 0; i < list.length; i++)
+        if (String(list[i]).toLowerCase() == lower) return i;
+    return -1;
+}
+
+// Says "-who" the way TrackPlayers says "-t" - see "FIRST RUN" above.
+function TrackPlayersTest()
+{
+    Orion.Say("-who");
+}
+
+// Closes every open "Tracking" menu: by name first, then the last menu while it's a Tracking
+// one and menus are still open (a few rounds, in case several are stacked).
+function CloseTrackingMenus()
+{
+    Orion.CloseMenu("Tracking");
+    Orion.Wait(150);
+    for (var i = 0; i < 5 && Orion.MenuCount() > 0; i++)
+    {
+        var m = Orion.GetMenu("lastmenu");
+        if (!m || m.Name().indexOf("Tracking") < 0) return;
+        m.Close();
+        Orion.Wait(150);
+    }
+}
+
+// Waits up to timeoutMs for a Tracking menu to arrive (an unanswered menu appears) that is the
+// name list (wantNames) or the category menu (not wantNames).
+function WaitNewTrackingMenu(wantNames, t0, timeoutMs)
+{
+    while (Orion.Now() < t0 + timeoutMs)
+    {
+        if (Orion.MenuCount() > 0)
+        {
+            var m = FindTrackingMenu(wantNames);
+            if (m != null) return m;
+        }
+        Orion.Wait(100);
+    }
+    return null;
+}
+
+// The last menu, if it's a Tracking menu of the wanted kind. Deliberately no Replayed() check -
+// see the comment in TrackPlayers() step 1.
+function FindTrackingMenu(wantNames)
+{
+    var m = Orion.GetMenu("lastmenu");
+    if (!m || m.Name().indexOf("Tracking") < 0) return null;
+    return IsCategoryMenu(m) != wantNames ? m : null;
+}
+
+function StillCategoryMenuOpen()
+{
+    return Orion.MenuCount() > 0 && FindTrackingMenu(false) != null;
+}
+
+// Diagnostics for the TextWindow when something doesn't go as expected.
+function DumpMenus(tag)
+{
+    TextWindow.Open();
+    TextWindow.Print("--- TrackPlayers: " + tag + " ---");
+    TextWindow.Print("  neodpovezenych menu: " + Orion.MenuCount());
+    var m = Orion.GetMenu("lastmenu");
+    if (!m)
+    {
+        TextWindow.Print("  lastmenu: zadne");
+        return;
+    }
+    TextWindow.Print("  lastmenu: \"" + m.Name() + "\" serial " + m.Serial() + " id " + m.ID()
+        + " replayed " + m.Replayed() + " polozek " + m.ItemsCount());
+    for (var i = 0; i < m.ItemsCount(); i++)
+        TextWindow.Print("  [" + i + "] " + m.ItemName(i));
+}
+
+// The first menu offers Animals / Monsters / Humans / Players; the second one lists names.
+function IsCategoryMenu(m)
+{
+    for (var i = 0; i < m.ItemsCount(); i++)
+        if (Trim(m.ItemName(i)) == "Players") return true;
+    return false;
+}
+
+function Trim(s)
+{
+    return String(s).replace(/^\s+|\s+$/g, "");
+}

@@ -1,0 +1,48 @@
+// PositionFeed.oajs - Variant A position feed for the new UOAM.
+//
+// Runs inside OrionUO. In the Scripts tab, open this file, pick PositionFeed() in the
+// "Handling" dropdown (top-left) and press Start. Pushes the player's current position to the
+// NewUOAM app over loopback UDP so the map viewer can show it with essentially no delay (this
+// script reads Player.X/Y/Z/Map directly from OrionUO's own in-memory state, the same values
+// the client itself is using - there is no polling of an external process).
+//
+// Wire format (must match NewUOAM.Positioning.Providers.OrionUdpPositionProvider):
+//   UOAM1|X|Y|Z|MAP|NAME
+//
+// This only ever SENDS data out; it never reads anything back from the app, so it cannot be
+// used to inject anything into the client.
+
+function PositionFeed()
+{
+    var TARGET_PORT = 27974;   // must match the port NewUOAM.App is listening on
+    var POLL_MS = "20";        // how often to check the position (Orion.Wait wants a string)
+    var HEARTBEAT_TICKS = 100; // send at least once every POLL_MS * HEARTBEAT_TICKS (~2s), even if unchanged
+
+    var lastX = -1, lastY = -1, lastZ = -999, lastMap = -1;
+    var ticksSinceSend = 0;
+
+    Orion.Print("[NewUOAM] Position feed started, sending to 127.0.0.1:" + TARGET_PORT);
+
+    while (true)
+    {
+        var x = Player.X();
+        var y = Player.Y();
+        var z = Player.Z();
+        var map = Player.Map();
+
+        var changed = (x !== lastX) || (y !== lastY) || (z !== lastZ) || (map !== lastMap);
+        ticksSinceSend = ticksSinceSend + 1;
+
+        if (changed || ticksSinceSend >= HEARTBEAT_TICKS)
+        {
+            var name = Player.Name();
+            var msg = "UOAM1|" + x + "|" + y + "|" + z + "|" + map + "|" + name;
+            Orion.UdpSend(TARGET_PORT, msg);
+
+            lastX = x; lastY = y; lastZ = z; lastMap = map;
+            ticksSinceSend = 0;
+        }
+
+        Orion.Wait(POLL_MS);
+    }
+}

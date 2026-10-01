@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NewUOAM.App/NewUOAM.App.csproj" />
+    <Project Path="src/NewUOAM.MapData/NewUOAM.MapData.csproj" />
+    <Project Path="src/NewUOAM.MemoryScanner/NewUOAM.MemoryScanner.csproj" />
+    <Project Path="src/NewUOAM.Positioning/NewUOAM.Positioning.csproj" />
+    <Project Path="src/NewUOAM.RelayServer/NewUOAM.RelayServer.csproj" />
+    <Project Path="src/NewUOAM.UoaBridge/NewUOAM.UoaBridge.csproj" />
+    <Project Path="src/NewUOAM.Updates/NewUOAM.Updates.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/NewUOAM.ReleaseTool/NewUOAM.ReleaseTool.csproj" />
+    <Project Path="tools/UopProbe/UopProbe.csproj" />
+  </Folder>
+</Solution>
