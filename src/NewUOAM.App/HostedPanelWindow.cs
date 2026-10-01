@@ -11,9 +11,9 @@ namespace NewUOAM.App;
 /// them (settings load/save, connect/disconnect state) - keep working with the dialog closed.</summary>
 internal sealed class HostedPanelWindow : Window
 {
-    public HostedPanelWindow(string title, FrameworkElement panel, Panel store, Window owner)
+    public HostedPanelWindow(string titleKey, FrameworkElement panel, Panel store, Window owner)
     {
-        Title = title;
+        SetResourceReference(TitleProperty, titleKey); // follows a language switch (Loc)
         Owner = owner; // stays above the map, which may be always on top
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;

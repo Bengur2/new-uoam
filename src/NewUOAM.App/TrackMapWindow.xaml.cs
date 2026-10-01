@@ -37,7 +37,12 @@ public partial class TrackMapWindow : Window
         _render = render;
         _ageTimer.Tick += (_, _) => UpdateHeader();
         Loaded += (_, _) => Redraw();
-        Closed += (_, _) => _ageTimer.Stop();
+        Loc.Changed += UpdateHeader;
+        Closed += (_, _) =>
+        {
+            _ageTimer.Stop();
+            Loc.Changed -= UpdateHeader;
+        };
     }
 
     public void ShowReport(RelayProtocol.TrackReport report)
@@ -97,18 +102,16 @@ public partial class TrackMapWindow : Window
     {
         if (_report is not { } r)
         {
-            HeaderText.Text = "Zatím žádný track.";
+            HeaderText.Text = Loc.T("Tr_None");
             return;
         }
-        HeaderText.Text = $"{r.Reporter} · {_reportTime:HH:mm} ({Age(DateTime.Now - _reportTime)}) · {r.X},{r.Y} · {r.Names.Count} {PlayersWord(r.Names.Count)}";
+        HeaderText.Text = $"{r.Reporter} · {_reportTime:HH:mm} ({Age(DateTime.Now - _reportTime)}) · {r.X},{r.Y} · {r.Names.Count} {Loc.Plural("Tr_Players", r.Names.Count)}";
     }
 
-    private static string PlayersWord(int count) => count switch { 1 => "hráč", >= 2 and <= 4 => "hráči", _ => "hráčů" };
-
     private static string Age(TimeSpan age) =>
-        age.TotalMinutes < 1 ? "právě teď"
-        : age.TotalHours < 1 ? $"před {(int)age.TotalMinutes} min"
-        : $"před {(int)age.TotalHours} h";
+        age.TotalMinutes < 1 ? Loc.T("Tr_JustNow")
+        : age.TotalHours < 1 ? Loc.F("Tr_MinutesAgo", (int)age.TotalMinutes)
+        : Loc.F("Tr_HoursAgo", (int)age.TotalHours);
 
     private void MapBorder_SizeChanged(object sender, SizeChangedEventArgs e) => Redraw();
 

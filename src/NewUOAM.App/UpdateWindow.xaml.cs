@@ -19,16 +19,16 @@ public partial class UpdateWindow : Window
         InitializeComponent();
         _manifest = manifest;
         _client = client;
-        VersionText.Text = $"Nainstalovaná: {App.CurrentVersion}   →   nová: {manifest.Version} " +
-                           $"({manifest.PublishedUtc.ToLocalTime():d. M. yyyy}, {manifest.PackageSize / (1024.0 * 1024.0):0} MB)";
-        NotesTextBox.Text = string.IsNullOrWhiteSpace(manifest.Notes) ? "(bez popisu změn)" : manifest.Notes;
+        VersionText.Text = Loc.F("Up_Version", App.CurrentVersion, manifest.Version,
+            manifest.PublishedUtc.ToLocalTime().ToString(Loc.T("Up_DateFormat")), (manifest.PackageSize / (1024.0 * 1024.0)).ToString("0"));
+        NotesTextBox.Text = string.IsNullOrWhiteSpace(manifest.Notes) ? Loc.T("Up_NoNotes") : manifest.Notes;
         Closing += OnClosing;
     }
 
     private async void UpdateButton_Click(object sender, RoutedEventArgs e)
     {
         UpdateButton.IsEnabled = false;
-        LaterButton.Content = "Zrušit";
+        LaterButton.SetResourceReference(ContentProperty, "Cr_Cancel");
         DownloadProgress.Visibility = Visibility.Visible;
         DownloadProgress.Value = 0;
         ShowStatus("Stahuji…", error: false);
@@ -67,9 +67,9 @@ public partial class UpdateWindow : Window
             ShowStatus(Describe(ex), error: true);
             DownloadProgress.Visibility = Visibility.Collapsed;
             UpdateButton.IsEnabled = true;
-            UpdateButton.Content = "Zkusit znovu";
+            UpdateButton.SetResourceReference(ContentProperty, "Up_Retry");
             LaterButton.IsEnabled = true;
-            LaterButton.Content = "Později";
+            LaterButton.SetResourceReference(ContentProperty, "Up_Later");
         }
         finally
         {

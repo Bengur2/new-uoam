@@ -9,7 +9,9 @@ public sealed class UoClientData : IDisposable
     public string ClientDirectory { get; }
 
     private readonly Dictionary<int, MapFacet> _facets = new();
-    private readonly Dictionary<int, FacetColorMap> _colorMaps = new();
+    // Keyed by (facet, view). Built on pool threads and read on the UI thread, hence the lock.
+    private readonly Dictionary<(int Facet, StaticsView View), FacetColorMap> _colorMaps = new();
+    private readonly object _colorMapsLock = new();
     private RadarColorTable? _radarColors;
     private string? _radarColorsPath;
 
@@ -26,10 +28,14 @@ public sealed class UoClientData : IDisposable
 
     public MapFacet GetFacet(int index)
     {
-        if (_facets.TryGetValue(index, out var facet)) return facet;
-        facet = MapFacet.Open(ClientDirectory, index);
-        _facets[index] = facet;
-        return facet;
+        // Locked: color maps are built/loaded on pool threads while the UI thread opens facets too.
+        lock (_facets)
+        {
+            if (_facets.TryGetValue(index, out var facet)) return facet;
+            facet = MapFacet.Open(ClientDirectory, index);
+            _facets[index] = facet;
+            return facet;
+        }
     }
 
     public bool TryGetFacet(int index, out MapFacet facet)
@@ -60,48 +66,105 @@ public sealed class UoClientData : IDisposable
         return found;
     }
 
-    public bool TryGetColorMap(int facetIndex, out FacetColorMap map) =>
-        _colorMaps.TryGetValue(facetIndex, out map!);
+    public bool TryGetColorMap(int facetIndex, StaticsView view, out FacetColorMap map)
+    {
+        lock (_colorMapsLock) return _colorMaps.TryGetValue((facetIndex, view), out map!);
+    }
+
+    /// <summary>Drops every built color map except those of <paramref name="keep"/> - one view of
+    /// a big facet is ~112 MiB, so switching views shouldn't keep the old one in memory. The disk
+    /// cache keeps it, so switching back is a ~50 ms load per facet.</summary>
+    public void ReleaseColorMapsExcept(StaticsView keep)
+    {
+        lock (_colorMapsLock)
+        {
+            foreach (var key in _colorMaps.Keys.Where(k => k.View != keep).ToList())
+                _colorMaps.Remove(key);
+        }
+    }
 
     /// <summary>Builds (or returns the already-built, or loads a still-valid on-disk cached) color
-    /// map for one facet. Building from scratch is expensive (decodes every tile) - callers on a
-    /// UI thread should offload this to a background thread, e.g. via
+    /// map for one facet in one view. Building from scratch is expensive (decodes every tile) -
+    /// callers on a UI thread should offload this to a background thread, e.g. via
     /// <see cref="PreloadAllColorMapsAsync"/>.</summary>
-    public FacetColorMap GetOrBuildColorMap(int facetIndex)
+    public FacetColorMap GetOrBuildColorMap(int facetIndex, StaticsView view, CancellationToken ct = default)
     {
-        if (_colorMaps.TryGetValue(facetIndex, out var existing)) return existing;
+        if (TryGetColorMap(facetIndex, view, out var existing)) return existing;
 
         var facet = GetFacet(facetIndex);
         var radar = RadarColors;
-        var sourceFiles = _radarColorsPath is null
-            ? facet.SourceFilePaths
-            : new List<string>(facet.SourceFilePaths) { _radarColorsPath };
+        var sourceFiles = SourceFilesFor(facet);
 
-        if (FacetColorMapDiskCache.TryLoad(ClientDirectory, facetIndex, sourceFiles, out var cached) && cached is not null)
+        if (!FacetColorMapDiskCache.TryLoad(ClientDirectory, facetIndex, view, sourceFiles, out var map) || map is null)
         {
-            _colorMaps[facetIndex] = cached;
-            return cached;
+            map = FacetColorMap.Build(facet, radar, view, ct);
+            FacetColorMapDiskCache.Save(ClientDirectory, facetIndex, sourceFiles, map);
         }
 
-        var map = FacetColorMap.Build(facet, radar);
-        _colorMaps[facetIndex] = map;
-        FacetColorMapDiskCache.Save(ClientDirectory, facetIndex, sourceFiles, map);
+        lock (_colorMapsLock) _colorMaps[(facetIndex, view)] = map;
         return map;
     }
 
-    /// <summary>Precomputes the color map for every facet this client folder has, so the app can
-    /// pan/zoom/rotate by sampling instead of re-decoding raw tiles on every repaint. Reports
-    /// progress as "facetIndex/totalCount" strings; safe to call from a background thread (each
-    /// facet's decode work only touches that facet's own data).</summary>
-    public async Task PreloadAllColorMapsAsync(IProgress<string>? progress = null, CancellationToken ct = default)
+    /// <summary>Loads a still-valid disk-cached color map into memory; false when there is none.
+    /// Never builds - for a view switch, which should show the cached view (~50 ms) rather than
+    /// start a build of several seconds on the spot.</summary>
+    public bool TryLoadCachedColorMap(int facetIndex, StaticsView view)
     {
-        var indices = DiscoverFacetIndices();
+        if (TryGetColorMap(facetIndex, view, out _)) return true;
+        var facet = GetFacet(facetIndex);
+        _ = RadarColors; // sets _radarColorsPath, part of the cache key
+        if (!FacetColorMapDiskCache.TryLoad(ClientDirectory, facetIndex, view, SourceFilesFor(facet), out var map) || map is null)
+            return false;
+        lock (_colorMapsLock) _colorMaps[(facetIndex, view)] = map;
+        return true;
+    }
+
+    /// <summary>Builds the given views of every facet into the disk cache without keeping them in
+    /// memory, so a later switch to them is a quick load - old UOAM likewise renders every view up
+    /// front. Views already cached are skipped (header check only). <paramref name="firstFacet"/>
+    /// goes first.</summary>
+    public async Task PrebuildColorMapsOnDiskAsync(IReadOnlyList<StaticsView> views, int firstFacet, CancellationToken ct)
+    {
+        var indices = DiscoverFacetIndices().OrderBy(i => i == firstFacet ? 0 : 1).ThenBy(i => i).ToList();
+        foreach (int facetIndex in indices)
+        {
+            foreach (var view in views)
+            {
+                ct.ThrowIfCancellationRequested();
+                await Task.Run(() =>
+                {
+                    if (TryGetColorMap(facetIndex, view, out _)) return; // in memory = already saved
+                    var facet = GetFacet(facetIndex);
+                    var radar = RadarColors;
+                    var sourceFiles = SourceFilesFor(facet);
+                    if (FacetColorMapDiskCache.IsCurrent(ClientDirectory, facetIndex, view, sourceFiles)) return;
+                    FacetColorMapDiskCache.Save(ClientDirectory, facetIndex, sourceFiles, FacetColorMap.Build(facet, radar, view, ct));
+                }, ct);
+            }
+        }
+    }
+
+    /// <summary>The files a facet's color map is derived from (the disk cache's validity key).
+    /// Read <see cref="RadarColors"/> first, it sets the radarcol.mul path.</summary>
+    private IReadOnlyList<string> SourceFilesFor(MapFacet facet) => _radarColorsPath is null
+        ? facet.SourceFilePaths
+        : new List<string>(facet.SourceFilePaths) { _radarColorsPath };
+
+    /// <summary>Precomputes the color map for every facet this client folder has, in one view, so
+    /// the app can pan/zoom/rotate by sampling instead of re-decoding raw tiles on every repaint.
+    /// <paramref name="firstFacet"/> (the one on screen) goes first. Reports progress as
+    /// "facetIndex/totalCount" strings; safe to call from a background thread (each facet's decode
+    /// work only touches that facet's own data).</summary>
+    public async Task PreloadAllColorMapsAsync(StaticsView view, int firstFacet = 0,
+        IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        var indices = DiscoverFacetIndices().OrderBy(i => i == firstFacet ? 0 : 1).ThenBy(i => i).ToList();
         for (int n = 0; n < indices.Count; n++)
         {
             ct.ThrowIfCancellationRequested();
             int facetIndex = indices[n];
             progress?.Report($"Předpočítávám mapu facetu {facetIndex} ({n + 1}/{indices.Count})…");
-            await Task.Run(() => GetOrBuildColorMap(facetIndex), ct);
+            await Task.Run(() => GetOrBuildColorMap(facetIndex, view, ct), ct);
         }
     }
 
@@ -127,8 +190,11 @@ public sealed class UoClientData : IDisposable
 
     public void Dispose()
     {
-        foreach (var facet in _facets.Values) facet.Dispose();
-        _facets.Clear();
-        _colorMaps.Clear();
+        lock (_facets)
+        {
+            foreach (var facet in _facets.Values) facet.Dispose();
+            _facets.Clear();
+        }
+        lock (_colorMapsLock) _colorMaps.Clear();
     }
 }

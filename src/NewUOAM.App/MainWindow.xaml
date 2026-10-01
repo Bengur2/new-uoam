@@ -33,18 +33,28 @@
              map-only mode (SetMapOnlyMode). Each item opens a HostedPanelWindow showing one of the
              panels from DialogPanelStore below. -->
         <Menu x:Name="MainMenu" DockPanel.Dock="Top">
-            <MenuItem Header="_Mapa">
-                <MenuItem Header="_Nastavení…" Click="MapSettingsMenuItem_Click"/>
+            <MenuItem Header="{DynamicResource Menu_Map}">
+                <MenuItem Header="{DynamicResource Menu_Settings}" Click="MapSettingsMenuItem_Click"/>
                 <Separator/>
-                <MenuItem Header="_Zkontrolovat aktualizace…" Click="CheckUpdatesMenuItem_Click"/>
+                <!-- Old UOAM's view switches (MainWindow.MapView.cs). Checks are set in code. -->
+                <MenuItem x:Name="NormalViewMenuItem" Header="{DynamicResource Menu_NormalView}" Click="NormalViewMenuItem_Click"/>
+                <MenuItem x:Name="XRayViewMenuItem" Header="{DynamicResource Menu_XRayView}" Click="XRayViewMenuItem_Click"/>
+                <Separator/>
+                <MenuItem x:Name="ShowStaticsMenuItem" Header="{DynamicResource Menu_ShowStatics}" Click="ShowStaticsMenuItem_Click"/>
+                <MenuItem x:Name="HideStaticsMenuItem" Header="{DynamicResource Menu_HideStatics}" Click="HideStaticsMenuItem_Click"/>
+                <Separator/>
+                <!-- Čeština / Slovenčina / English, filled in code (Loc, MainWindow.Language.cs). -->
+                <MenuItem x:Name="LanguageMenuItem" Header="{DynamicResource Menu_Language}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu_CheckUpdates}" Click="CheckUpdatesMenuItem_Click"/>
                 <MenuItem x:Name="VersionMenuItem" Header="Verze" IsEnabled="False"/>
             </MenuItem>
-            <MenuItem Header="_Online">
-                <MenuItem Header="_Připojit k mapě…" Click="OnlineMenuItem_Click"/>
+            <MenuItem Header="{DynamicResource Menu_Online}">
+                <MenuItem Header="{DynamicResource Menu_Connect}" Click="OnlineMenuItem_Click"/>
             </MenuItem>
             <!-- Which running client the map tracks. Items are built each time it opens
                  (ClientMenu_SubmenuOpened); the placeholder only makes it openable. -->
-            <MenuItem x:Name="ClientMenu" Header="_Klient" SubmenuOpened="ClientMenu_SubmenuOpened">
+            <MenuItem x:Name="ClientMenu" Header="{DynamicResource Menu_Client}" SubmenuOpened="ClientMenu_SubmenuOpened">
                 <MenuItem Header="…" IsEnabled="False"/>
             </MenuItem>
         </Menu>
@@ -68,18 +78,18 @@
 
                 <DockPanel DockPanel.Dock="Top" Margin="4,0,8,6">
                     <TextBlock x:Name="MarkerCountText" DockPanel.Dock="Right" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
-                    <TextBlock Text="MARKERY" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Panel_Markers}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
                 </DockPanel>
 
                 <Grid DockPanel.Dock="Top" Margin="4,0,8,6">
                     <TextBox x:Name="MarkerSearchTextBox" Padding="4,4" TextChanged="MarkerSearchTextBox_TextChanged"/>
-                    <TextBlock x:Name="MarkerSearchPlaceholder" Text="Hledat markery…" Foreground="Gray" FontStyle="Italic"
+                    <TextBlock x:Name="MarkerSearchPlaceholder" Text="{DynamicResource Panel_Search}" Foreground="Gray" FontStyle="Italic"
                                Margin="7,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
                 </Grid>
 
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,0,8,8">
-                    <Button Content="Vše" Padding="10,2" Click="MarkerShowAllButton_Click" ToolTip="Zobrazit všechny kategorie"/>
-                    <Button Content="Nic" Padding="10,2" Margin="6,0,0,0" Click="MarkerHideAllButton_Click" ToolTip="Skrýt všechny kategorie"/>
+                    <Button Content="{DynamicResource Panel_All}" Padding="10,2" Click="MarkerShowAllButton_Click" ToolTip="{DynamicResource Panel_AllTip}"/>
+                    <Button Content="{DynamicResource Panel_None}" Padding="10,2" Margin="6,0,0,0" Click="MarkerHideAllButton_Click" ToolTip="{DynamicResource Panel_NoneTip}"/>
                 </StackPanel>
 
                 <TextBlock x:Name="MarkerPanelHint" DockPanel.Dock="Top" Foreground="Gray" FontSize="11" TextWrapping="Wrap"
@@ -108,12 +118,12 @@
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Arrow}" Foreground="Gray" Width="14" Margin="6,0,2,0" VerticalAlignment="Center"/>
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Count}" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
                                 <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" Visibility="{Binding CheckboxVisibility}" VerticalAlignment="Center" Margin="0,0,6,0"
-                                          ToolTip="Zobrazovat sdílené markery od všech"/>
+                                          ToolTip="{DynamicResource Panel_SharedSectionTip}"/>
                                 <TextBlock Text="{Binding Title}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
                             </DockPanel>
                         </DataTemplate>
                         <DataTemplate DataType="{x:Type local:MarkerCategoryRow}">
-                            <DockPanel Cursor="Hand" ToolTip="Pravým tlačítkem sdílíš celou kategorii s místností">
+                            <DockPanel Cursor="Hand" ToolTip="{DynamicResource Panel_CategoryTip}">
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Arrow}" Foreground="Gray" Width="14" Margin="6,0,2,0" VerticalAlignment="Center"/>
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Count}" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
                                 <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -123,9 +133,9 @@
                             </DockPanel>
                         </DataTemplate>
                         <DataTemplate DataType="{x:Type local:MarkerEntryRow}">
-                            <DockPanel Margin="22,0,0,0" Cursor="Hand" ToolTip="Klikni pro přesun mapy na marker, pravým tlačítkem ho sdílíš">
+                            <DockPanel Margin="22,0,0,0" Cursor="Hand" ToolTip="{DynamicResource Panel_EntryTip}">
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Coordinates}" Foreground="Gray" FontSize="11" Margin="6,0,18,0" VerticalAlignment="Center"/>
-                                <TextBlock DockPanel.Dock="Right" Text="sdíleno" Foreground="#FF6FB7FF" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"
+                                <TextBlock DockPanel.Dock="Right" Text="{DynamicResource Panel_SharedBadge}" Foreground="#FF6FB7FF" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"
                                            Visibility="{Binding SharedBadgeVisibility}"/>
                                 <Image Source="{Binding Icon}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center"
                                        RenderOptions.BitmapScalingMode="HighQuality"/>
@@ -134,7 +144,7 @@
                         </DataTemplate>
                         <!-- A player sharing markers: checkbox = show all of theirs (off by default). -->
                         <DataTemplate DataType="{x:Type local:SharedOwnerRow}">
-                            <DockPanel Cursor="Hand" ToolTip="Pravým tlačítkem uložíš všechny jeho markery">
+                            <DockPanel Cursor="Hand" ToolTip="{DynamicResource Panel_OwnerTip}">
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Arrow}" Foreground="Gray" Width="14" Margin="6,0,2,0" VerticalAlignment="Center"/>
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Count}" Foreground="Gray" FontSize="11" VerticalAlignment="Center"/>
                                 <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -143,11 +153,11 @@
                             </DockPanel>
                         </DataTemplate>
                         <DataTemplate DataType="{x:Type local:SharedMarkRow}">
-                            <DockPanel Margin="22,0,0,0" Cursor="Hand" ToolTip="Klikni pro přesun mapy na marker">
-                                <Button DockPanel.Dock="Right" Content="Uložit" FontSize="10" Padding="4,0" Margin="6,0,2,0" VerticalAlignment="Center"
+                            <DockPanel Margin="22,0,0,0" Cursor="Hand" ToolTip="{DynamicResource Panel_SharedEntryTip}">
+                                <Button DockPanel.Dock="Right" Content="{DynamicResource Panel_Save}" FontSize="10" Padding="4,0" Margin="6,0,2,0" VerticalAlignment="Center"
                                         Visibility="{Binding SaveButtonVisibility}" Click="SharedMarkSaveButton_Click"
-                                        ToolTip="Uložit do Uložené od ostatních (shared_markers.map)"/>
-                                <TextBlock DockPanel.Dock="Right" Text="uloženo" Foreground="Gray" FontSize="10" Margin="6,0,2,0" VerticalAlignment="Center"
+                                        ToolTip="{DynamicResource Panel_SaveTip}"/>
+                                <TextBlock DockPanel.Dock="Right" Text="{DynamicResource Panel_Saved}" Foreground="Gray" FontSize="10" Margin="6,0,2,0" VerticalAlignment="Center"
                                            Visibility="{Binding SavedTextVisibility}"/>
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Coordinates}" Foreground="Gray" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                 <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -221,18 +231,18 @@
              dialog moves the panel into it; closing moves it back. -->
         <Grid x:Name="DialogPanelStore" DockPanel.Dock="Top" Visibility="Collapsed">
             <StackPanel x:Name="ClientSettingsContent" Margin="14">
-                <TextBlock Text="SOUBORY MAPY (.MUL / .UOP)" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <TextBlock Text="{DynamicResource Set_MapFiles}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
                 <TextBox x:Name="ClientDirTextBox" Padding="4,4" Margin="0,0,0,4" TextChanged="MapFolderTextBoxes_TextChanged"/>
                 <TextBlock Foreground="Gray" FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"
-                           Text="Složka, ve které jsou soubory mapy: map0.mul nebo map0LegacyMUL.uop, statics0.mul, staidx0.mul a radarcol.mul. Obvykle je to hlavní složka klienta Ultima Online."/>
+                           Text="{DynamicResource Set_MapFilesHelp}"/>
                 <StackPanel Orientation="Horizontal">
-                    <Button x:Name="BrowseButton" Content="Procházet…" Padding="8,3" Click="BrowseButton_Click"/>
-                    <Button x:Name="LoadMapButton" Content="Načíst mapu" Padding="8,3" Margin="6,0,0,0" Click="LoadMapButton_Click"/>
+                    <Button x:Name="BrowseButton" Content="{DynamicResource Set_Browse}" Padding="8,3" Click="BrowseButton_Click"/>
+                    <Button x:Name="LoadMapButton" Content="{DynamicResource Set_LoadMap}" Padding="8,3" Margin="6,0,0,0" Click="LoadMapButton_Click"/>
                 </StackPanel>
 
                 <Separator Margin="0,14" Background="#FF3F3F46"/>
 
-                <TextBlock Text="MARKERY" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <TextBlock Text="{DynamicResource Panel_Markers}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
                 <!-- Empty = the map files folder (MainWindow.EffectiveMarkersDirectory); the hint
                      overlaid on the empty box shows which folder that is. -->
                 <Grid Margin="0,0,0,4">
@@ -241,29 +251,29 @@
                                VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"/>
                 </Grid>
                 <TextBlock Foreground="Gray" FontSize="11" Margin="0,0,0,6" TextWrapping="Wrap"
-                           Text="Složka se soubory markerů .map (formát staré UOAM) a .csv. Načtou se všechny tyto soubory přímo v té složce, bez podsložek. Když necháš pole prázdné, použije se složka souborů mapy."/>
+                           Text="{DynamicResource Set_MarkersHelp}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <Button x:Name="BrowseMarkersButton" Content="Procházet…" Padding="8,3" Click="BrowseMarkersButton_Click"/>
-                    <Button x:Name="LoadMarkersButton" Content="Načíst markery" Padding="8,3" Margin="6,0,0,0" Click="LoadMarkersButton_Click"/>
+                    <Button x:Name="BrowseMarkersButton" Content="{DynamicResource Set_Browse}" Padding="8,3" Click="BrowseMarkersButton_Click"/>
+                    <Button x:Name="LoadMarkersButton" Content="{DynamicResource Set_LoadMarkers}" Padding="8,3" Margin="6,0,0,0" Click="LoadMarkersButton_Click"/>
                 </StackPanel>
-                <CheckBox x:Name="ShowMarkersCheckBox" Content="Zobrazit markery" Foreground="White" IsChecked="True"
+                <CheckBox x:Name="ShowMarkersCheckBox" Content="{DynamicResource Set_ShowMarkers}" Foreground="White" IsChecked="True"
                           Checked="ShowMarkersCheckBox_Changed" Unchecked="ShowMarkersCheckBox_Changed"/>
 
                 <Separator Margin="0,14" Background="#FF3F3F46"/>
 
                 <!-- Moved here from the side panel 2026-09-28. -->
-                <TextBlock Text="ZOBRAZENÍ" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
-                <Button x:Name="ToggleRotationButton" Content="Pohled: otočený 45°" Padding="8,3"
+                <TextBlock Text="{DynamicResource Set_View}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <Button x:Name="ToggleRotationButton" Content="{DynamicResource Set_Rotated}" Padding="8,3"
                         HorizontalAlignment="Left" Margin="0,0,0,6" Click="ToggleRotationButton_Click"/>
                 <StackPanel Orientation="Horizontal">
-                    <CheckBox x:Name="ShowCoordinatesCheckBox" Content="Souřadnice" Foreground="White"
+                    <CheckBox x:Name="ShowCoordinatesCheckBox" Content="{DynamicResource Set_Coordinates}" Foreground="White"
                               Checked="OverlayCheckBox_Changed" Unchecked="OverlayCheckBox_Changed"/>
-                    <CheckBox x:Name="ShowCompassCheckBox" Content="Světové strany" Foreground="White" Margin="14,0,0,0"
+                    <CheckBox x:Name="ShowCompassCheckBox" Content="{DynamicResource Set_Compass}" Foreground="White" Margin="14,0,0,0"
                               Checked="OverlayCheckBox_Changed" Unchecked="OverlayCheckBox_Changed"/>
                 </StackPanel>
                 <!-- Your own marker's color, only on your map (2026-09-29). PlacementTarget is set
                      in code, like PlayerColorPopup's. -->
-                <TextBlock Text="Barva mé postavy (čtvereček a šipka, vidíš jen ty)" Foreground="Gray" FontSize="11" Margin="0,10,0,2" TextWrapping="Wrap"/>
+                <TextBlock Text="{DynamicResource Set_SelfColor}" Foreground="Gray" FontSize="11" Margin="0,10,0,2" TextWrapping="Wrap"/>
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="SelfMarkerColorButton" Padding="6,3" Click="SelfMarkerColorButton_Click">
                         <StackPanel Orientation="Horizontal">
@@ -272,7 +282,7 @@
                             <TextBlock Text="  ▾" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="SelfMarkerColorResetButton" Content="Výchozí (červená)" Padding="8,3" Margin="6,0,0,0" Click="SelfMarkerColorReset_Click"/>
+                    <Button x:Name="SelfMarkerColorResetButton" Content="{DynamicResource Set_SelfColorReset}" Padding="8,3" Margin="6,0,0,0" Click="SelfMarkerColorReset_Click"/>
                 </StackPanel>
                 <Popup x:Name="SelfMarkerColorPopup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
                     <Border Background="#FF2D2D30" BorderBrush="#FF5A5A60" BorderThickness="1" Padding="8">
@@ -284,10 +294,10 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
-                            <TextBlock Text="Vlastní barva (#RRGGBB)" Foreground="Gray" FontSize="11" Margin="0,8,0,2"/>
+                            <TextBlock Text="{DynamicResource Set_CustomColor}" Foreground="Gray" FontSize="11" Margin="0,8,0,2"/>
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="SelfMarkerColorHexTextBox" Width="90" Padding="4,2" KeyDown="SelfMarkerColorHexTextBox_KeyDown"/>
-                                <Button Content="Použít" Padding="8,2" Margin="6,0,0,0" Click="SelfMarkerColorHexApply_Click"/>
+                                <Button Content="{DynamicResource Set_Apply}" Padding="8,2" Margin="6,0,0,0" Click="SelfMarkerColorHexApply_Click"/>
                             </StackPanel>
                             <TextBlock x:Name="SelfMarkerColorHexError" Foreground="#FFFF8A80" FontSize="11" Margin="0,4,0,0"
                                        TextWrapping="Wrap" MaxWidth="260" Visibility="Collapsed"/>
@@ -297,11 +307,11 @@
             </StackPanel>
 
             <StackPanel x:Name="OnlineSettingsContent" Margin="14">
-                <TextBlock Text="Adresa serveru (host:port)" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                <TextBlock Text="{DynamicResource On_Address}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
                 <TextBox x:Name="RelayServerTextBox" Padding="4,4" Margin="0,0,0,8"/>
-                <TextBlock Text="Zobrazované jméno" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                <TextBlock Text="{DynamicResource On_DisplayName}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
                 <TextBox x:Name="DisplayNameTextBox" Padding="4,4" Margin="0,0,0,8"/>
-                <TextBlock Text="Barva (jméno a značka na mapě, jméno a text v chatu)" Foreground="Gray" FontSize="11" Margin="0,0,0,2" TextWrapping="Wrap"/>
+                <TextBlock Text="{DynamicResource On_Color}" Foreground="Gray" FontSize="11" Margin="0,0,0,2" TextWrapping="Wrap"/>
                 <!-- Color picker: a swatch button opening a popup grid (PlayerColors.Palette,
                      generated by perceived brightness so every entry stays readable on the
                      dark map/chat) plus a custom #RRGGBB field with the same readability check.
@@ -324,56 +334,56 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
-                            <TextBlock Text="Vlastní barva (#RRGGBB)" Foreground="Gray" FontSize="11" Margin="0,8,0,2"/>
+                            <TextBlock Text="{DynamicResource Set_CustomColor}" Foreground="Gray" FontSize="11" Margin="0,8,0,2"/>
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="PlayerColorHexTextBox" Width="90" Padding="4,2" KeyDown="PlayerColorHexTextBox_KeyDown"/>
-                                <Button Content="Použít" Padding="8,2" Margin="6,0,0,0" Click="PlayerColorHexApply_Click"/>
+                                <Button Content="{DynamicResource Set_Apply}" Padding="8,2" Margin="6,0,0,0" Click="PlayerColorHexApply_Click"/>
                             </StackPanel>
                             <TextBlock x:Name="PlayerColorHexError" Foreground="#FFFF8A80" FontSize="11" Margin="0,4,0,0"
                                        TextWrapping="Wrap" MaxWidth="260" Visibility="Collapsed"/>
                         </StackPanel>
                     </Border>
                 </Popup>
-                <TextBlock Text="Heslo místnosti" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                <TextBlock Text="{DynamicResource On_RoomPassword}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
                 <TextBox x:Name="RoomPasswordTextBox" Padding="4,4" Margin="0,0,0,4"/>
                 <!-- A player creates their own room; the server generates the password (CreateRoomWindow). -->
-                <Button x:Name="CreateRoomButton" Content="Založit novou místnost…" Padding="8,2" Margin="0,0,0,10"
+                <Button x:Name="CreateRoomButton" Content="{DynamicResource On_CreateRoom}" Padding="8,2" Margin="0,0,0,10"
                         HorizontalAlignment="Left" Click="CreateRoomButton_Click"/>
                 <StackPanel Orientation="Horizontal">
-                    <Button x:Name="StartRelayButton" Content="Připojit" Padding="8,3" Click="StartRelayButton_Click"/>
-                    <Button x:Name="StopRelayButton" Content="Odpojit" Padding="8,3" Margin="6,0,0,0" Click="StopRelayButton_Click" IsEnabled="False"/>
-                    <Button x:Name="OpenAdminButton" Content="Admin…" Padding="8,3" Margin="6,0,0,0" Click="OpenAdminButton_Click"/>
+                    <Button x:Name="StartRelayButton" Content="{DynamicResource On_Connect}" Padding="8,3" Click="StartRelayButton_Click"/>
+                    <Button x:Name="StopRelayButton" Content="{DynamicResource On_Disconnect}" Padding="8,3" Margin="6,0,0,0" Click="StopRelayButton_Click" IsEnabled="False"/>
+                    <Button x:Name="OpenAdminButton" Content="{DynamicResource On_Admin}" Padding="8,3" Margin="6,0,0,0" Click="OpenAdminButton_Click"/>
                 </StackPanel>
                 <!-- In-game chat display via the UOAssist API (how old UOAM did it) - see
                      UoAssistTextSender. Targets the client tracked in Varianta B2. -->
-                <CheckBox x:Name="ShowChatInGameCheckBox" Content="Zobrazovat chat mapy ve hře" Foreground="White" Margin="0,10,0,0"
+                <CheckBox x:Name="ShowChatInGameCheckBox" Content="{DynamicResource On_ChatInGame}" Foreground="White" Margin="0,10,0,0"
                           IsChecked="True" Checked="ShowChatInGameCheckBox_Changed" Unchecked="ShowChatInGameCheckBox_Changed"
-                          ToolTip="Zprávy z chatu mapy se ukážou v okně Ultimy vlevo dole jako systémové zprávy (vidíš je jen ty). Používá rozhraní UOAssist, které nabízí Orion Assistant - stejně jako stará UOAM."/>
-                <CheckBox x:Name="PanicSoundCheckBox" Content="Zvuk při panice spoluhráče" Foreground="White" Margin="0,6,0,0"
+                          ToolTip="{DynamicResource On_ChatInGameTip}"/>
+                <CheckBox x:Name="PanicSoundCheckBox" Content="{DynamicResource On_PanicSound}" Foreground="White" Margin="0,6,0,0"
                           IsChecked="True" Checked="PanicSoundCheckBox_Changed" Unchecked="PanicSoundCheckBox_Changed"
-                          ToolTip="Když někdo v místnosti zapne Panic! (ve hře -panic, nebo v menu mapy), mapa opakovaně pípne, dokud panic trvá."/>
-                <CheckBox x:Name="AutoConnectRelayCheckBox" Content="Připojit automaticky při spuštění" Foreground="White" Margin="0,6,0,0"
+                          ToolTip="{DynamicResource On_PanicSoundTip}"/>
+                <CheckBox x:Name="AutoConnectRelayCheckBox" Content="{DynamicResource On_AutoConnect}" Foreground="White" Margin="0,6,0,0"
                           Checked="AutoConnectRelayCheckBox_Changed" Unchecked="AutoConnectRelayCheckBox_Changed"
-                          ToolTip="Po spuštění se mapa sama připojí k místnosti s výše uloženou adresou, jménem a heslem. Chyby se ukážou ve stavovém řádku; když server neodpovídá (třeba hned po zapnutí PC), zkusí to ještě několikrát."/>
-                <CheckBox x:Name="ShowUnreadChatCheckBox" Content="Zobrazovat počet nepřečtených zpráv na mapě" Foreground="White" Margin="0,6,0,0"
+                          ToolTip="{DynamicResource On_AutoConnectTip}"/>
+                <CheckBox x:Name="ShowUnreadChatCheckBox" Content="{DynamicResource On_Unread}" Foreground="White" Margin="0,6,0,0"
                           IsChecked="True" Checked="ShowUnreadChatCheckBox_Changed" Unchecked="ShowUnreadChatCheckBox_Changed"
-                          ToolTip="Zprávy, které přišly při zavřeném chatu, se počítají vpravo nahoře na mapě. Kliknutím na počítadlo otevřeš chat. Chat si pamatuje všechno od připojení, dokud se neodpojíš."/>
+                          ToolTip="{DynamicResource On_UnreadTip}"/>
                 <TextBlock Foreground="Gray" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
-                           Text="Ve hře: -c zpráva (chat mapy), -c jméno>zpráva (soukromě), -who (kdo je v místnosti), -t jméno, jméno (tracknutí hráči), -panic, -unpanic. Mezerník v mapě zapne/vypne Panic!"/>
+                           Text="{DynamicResource On_CommandsHelp}"/>
 
                 <Separator Margin="0,12" Background="#FF3F3F46"/>
                 <!-- Track reports ("-t", MainWindow.Tracking.cs). The radio buttons use their own
                      GroupName: the panel moves between windows, and a name scope change must not
                      regroup them. -->
-                <TextBlock Text="TRACKING" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
-                <CheckBox x:Name="ShowTrackMapCheckBox" Content="Zobrazovat track mapu" Foreground="White"
+                <TextBlock Text="{DynamicResource On_Tracking}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                <CheckBox x:Name="ShowTrackMapCheckBox" Content="{DynamicResource On_ShowTrackMap}" Foreground="White"
                           IsChecked="True" Checked="TrackMapSetting_Changed" Unchecked="TrackMapSetting_Changed"
-                          ToolTip="Druhá malá mapa, která ukáže místo posledního tracku (-t) a jména tracknutých hráčů. Zůstane tam, dokud nepřijde další track nebo ji nezavřeš."/>
-                <RadioButton x:Name="TrackMapPopupRadio" GroupName="TrackMapMode" Content="Otevřít navrchu, když někdo trackne" Foreground="White"
+                          ToolTip="{DynamicResource On_ShowTrackMapTip}"/>
+                <RadioButton x:Name="TrackMapPopupRadio" GroupName="TrackMapMode" Content="{DynamicResource On_TrackPopup}" Foreground="White"
                              Margin="18,4,0,0" IsChecked="True" Checked="TrackMapSetting_Changed"/>
-                <RadioButton x:Name="TrackMapAlwaysRadio" GroupName="TrackMapMode" Content="Nechat otevřenou pořád" Foreground="White"
+                <RadioButton x:Name="TrackMapAlwaysRadio" GroupName="TrackMapMode" Content="{DynamicResource On_TrackAlways}" Foreground="White"
                              Margin="18,2,0,0" Checked="TrackMapSetting_Changed"/>
-                <CheckBox x:Name="TrackSoundCheckBox" Content="Zvuk, když někdo trackne" Foreground="White" Margin="0,6,0,0"
+                <CheckBox x:Name="TrackSoundCheckBox" Content="{DynamicResource On_TrackSound}" Foreground="White" Margin="0,6,0,0"
                           IsChecked="True" Checked="TrackSoundCheckBox_Changed" Unchecked="TrackSoundCheckBox_Changed"/>
             </StackPanel>
         </Grid>
@@ -441,7 +451,7 @@
                     </Canvas>
                     <Polygon x:Name="SelfArrow" Points="0,-7 16,0 0,7" Fill="Red" Stroke="Black" StrokeThickness="1"
                              RenderTransformOrigin="0.5,0.5" Visibility="Collapsed" Cursor="Hand"
-                             ToolTip="Zpět na mou postavu" MouseLeftButtonDown="SelfArrow_MouseLeftButtonDown">
+                             ToolTip="{DynamicResource Map_SelfArrowTip}" MouseLeftButtonDown="SelfArrow_MouseLeftButtonDown">
                         <Polygon.RenderTransform>
                             <RotateTransform x:Name="SelfArrowRotation"/>
                         </Polygon.RenderTransform>
@@ -523,7 +533,7 @@
                      used to cover (user report 2026-09-28). -->
                 <Button x:Name="SettingsToggleButton" Content="☰" Width="32" Height="32" Padding="0"
                         FontSize="16" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,32,0,0"
-                        ToolTip="Nastavení" Click="SettingsToggleButton_Click"/>
+                        ToolTip="{DynamicResource Map_PanelTip}" Click="SettingsToggleButton_Click"/>
             </Grid>
         </Border>
     </DockPanel>

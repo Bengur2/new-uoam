@@ -46,17 +46,17 @@
             </Grid.ColumnDefinitions>
             <!-- Enter sends (no Send button since 2026-09-29, user's request). -->
             <TextBox x:Name="ChatInputTextBox" Grid.Column="0" Padding="6,5" VerticalContentAlignment="Center"
-                     KeyDown="ChatInputTextBox_KeyDown" ToolTip="Enter odešle zprávu"/>
+                     KeyDown="ChatInputTextBox_KeyDown" ToolTip="{DynamicResource Chat_InputTip}"/>
             <!-- Clears the list on this map only; nobody else's chat changes. -->
             <!-- Who's in the room, with distance/direction (like "-who" in the game). -->
             <Button x:Name="PlayersButton" Grid.Column="1" Content="👥" FontFamily="Segoe UI Emoji" Width="30" Margin="4,0,0,0"
-                    ToolTip="Hráči v místnosti" Click="PlayersButton_Click"/>
+                    ToolTip="{DynamicResource Chat_PlayersTip}" Click="PlayersButton_Click"/>
             <Popup x:Name="PlayersPopup" PlacementTarget="{Binding ElementName=PlayersButton}" Placement="Top"
                    StaysOpen="False" AllowsTransparency="True" Closed="PlayersPopup_Closed">
                 <Border Background="#FF2D2D30" BorderBrush="#FF5A5A60" BorderThickness="1" Padding="8,6" MinWidth="180">
                     <StackPanel>
-                        <TextBlock Text="HRÁČI V MÍSTNOSTI" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,4"/>
-                        <TextBlock x:Name="PlayersEmptyText" Text="Nejsi připojen(a)." Foreground="Gray" FontStyle="Italic" Visibility="Collapsed"/>
+                        <TextBlock Text="{DynamicResource Chat_PlayersHeader}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="PlayersEmptyText" Text="{DynamicResource Chat_NotConnected}" Foreground="Gray" FontStyle="Italic" Visibility="Collapsed"/>
                         <ItemsControl x:Name="PlayersList">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -70,7 +70,7 @@
                 </Border>
             </Popup>
             <Button x:Name="ClearButton" Grid.Column="2" Content="🗑" FontFamily="Segoe UI Emoji" Width="30" Margin="4,0,0,0"
-                    ToolTip="Vymazat zprávy (jen u tebe, ostatním zůstanou)" Click="ClearButton_Click"/>
+                    ToolTip="{DynamicResource Chat_ClearTip}" Click="ClearButton_Click"/>
         </Grid>
     </Grid>
 </Window>

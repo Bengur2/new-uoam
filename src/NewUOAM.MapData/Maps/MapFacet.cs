@@ -209,17 +209,26 @@ public sealed class MapFacet : IDisposable
         return (IReadOnlyList<StaticItem>?)matches ?? Array.Empty<StaticItem>();
     }
 
-    /// <summary>The topmost (highest Z) static on this tile, if any - the one a simple overhead
-    /// map should draw, matching how the in-game radar map only ever shows one thing per tile.</summary>
-    public bool TryGetTopStatic(int x, int y, out StaticItem top)
+    /// <summary>The static drawn on this tile instead of the land in the given view, if any (only
+    /// one thing shows per tile, like the in-game radar map). See <see cref="StaticsView"/> for
+    /// the rules. <paramref name="landZ"/> is the tile's land Z.</summary>
+    public bool TryGetDrawnStatic(int x, int y, sbyte landZ, StaticsView view, out StaticItem drawn)
     {
-        var statics = GetStaticsAt(x, y);
-        if (statics.Count == 0) { top = default; return false; }
+        drawn = default;
+        if (view == StaticsView.Hidden) return false;
 
-        top = statics[0];
-        for (int i = 1; i < statics.Count; i++)
-            if (statics[i].Z > top.Z) top = statics[i];
-        return true;
+        bool found = false;
+        foreach (var s in GetStaticsAt(x, y))
+        {
+            bool eligible = view == StaticsView.Normal ? s.Z >= landZ : s.Z <= landZ;
+            // ">=": on equal Z the later one in statics.mul wins, as in old UOAM.
+            if (eligible && (!found || s.Z >= drawn.Z))
+            {
+                drawn = s;
+                found = true;
+            }
+        }
+        return found;
     }
 
     public void Dispose()

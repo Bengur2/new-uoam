@@ -16,7 +16,7 @@ public partial class AdminWindow : Window
     private sealed record RoomRow(RelayProtocol.AdminRoomInfo Info)
     {
         public string Name => Info.Name;
-        public string Source => Info.CreatedByPlayer ? "hráč" : "admin";
+        public string Source => Loc.T(Info.CreatedByPlayer ? "Adm_SourcePlayer" : "Adm_SourceAdmin");
         public Brush SourceBrush => Info.CreatedByPlayer ? Brushes.Khaki : Brushes.LightSkyBlue;
         public string Created => Info.CreatedUtc.ToLocalTime().ToString("d. M. yyyy H:mm");
         public string LastUsed => Describe(Info.LastUsedUtc);

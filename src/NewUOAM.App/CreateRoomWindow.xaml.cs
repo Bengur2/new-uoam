@@ -39,7 +39,7 @@ public partial class CreateRoomWindow : Window
             if (result.Success)
             {
                 Password = result.Password;
-                DoneTitle.Text = $"Místnost „{RelayProtocol.CleanRoomName(RoomNameTextBox.Text)}“ je založená.";
+                DoneTitle.Text = Loc.F("Cr_Done", RelayProtocol.CleanRoomName(RoomNameTextBox.Text));
                 PasswordTextBox.Text = result.Password;
                 RequestPanel.Visibility = Visibility.Collapsed;
                 DonePanel.Visibility = Visibility.Visible;
@@ -78,7 +78,7 @@ public partial class CreateRoomWindow : Window
         try
         {
             Clipboard.SetText(PasswordTextBox.Text);
-            CopyButton.Content = "Zkopírováno";
+            CopyButton.SetResourceReference(ContentProperty, "Cr_Copied");
         }
         catch (System.Runtime.InteropServices.COMException)
         {

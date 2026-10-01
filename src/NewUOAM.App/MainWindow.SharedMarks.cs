@@ -65,7 +65,7 @@ public partial class MainWindow
         {
             var share = new MenuItem
             {
-                Header = categoryName is null ? "Sdílet s místností" : $"Sdílet kategorii {categoryName} s místností ({notShared.Count})",
+                Header = categoryName is null ? Loc.T("Ctx_Share") : Loc.F("Ctx_ShareCategory", categoryName, notShared.Count),
             };
             share.Click += (_, _) => ShareMarks(notShared, categoryName);
             items.Add(share);
@@ -74,7 +74,7 @@ public partial class MainWindow
         {
             var unshare = new MenuItem
             {
-                Header = categoryName is null ? "Přestat sdílet" : $"Přestat sdílet kategorii {categoryName} ({shared.Count})",
+                Header = categoryName is null ? Loc.T("Ctx_Unshare") : Loc.F("Ctx_UnshareCategory", categoryName, shared.Count),
             };
             unshare.Click += (_, _) =>
             {
@@ -104,7 +104,7 @@ public partial class MainWindow
     private List<Control> BuildUnshareAllMenuItems()
     {
         if (_relayClient is not { MySharedMarkCount: > 0 } client) return [];
-        var item = new MenuItem { Header = $"Přestat sdílet všechny moje markery ({client.MySharedMarkCount})" };
+        var item = new MenuItem { Header = Loc.F("Ctx_UnshareAll", client.MySharedMarkCount) };
         item.Click += (_, _) =>
         {
             client.UnshareAllMarks();
@@ -181,7 +181,7 @@ public partial class MainWindow
                     OnSharedMarkVisibilityChanged));
         }
         if (searching && sectionRows.Count == 0) return;
-        AddSection(rows, MarkerSection.Shared, "SDÍLENÉ V MÍSTNOSTI", total, sectionRows, searching,
+        AddSection(rows, MarkerSection.Shared, Loc.T("Panel_SectionShared"), total, sectionRows, searching,
             _sharedMarksAllVisible, OnSharedSectionVisibilityChanged);
     }
 
@@ -219,7 +219,7 @@ public partial class MainWindow
     private List<Control> BuildSaveSharedMenuItems(string owner, IReadOnlyList<RelayProtocol.SharedMark> marks, string header)
     {
         var unsaved = marks.Where(m => !IsSavedLocally(m)).ToList();
-        if (unsaved.Count == 0) return [new MenuItem { Header = "Už uloženo", IsEnabled = false }];
+        if (unsaved.Count == 0) return [new MenuItem { Header = Loc.T("Ctx_AlreadySaved"), IsEnabled = false }];
         var item = new MenuItem { Header = marks.Count > 1 ? $"{header} ({unsaved.Count})" : header };
         item.Click += (_, _) => SaveSharedMarks(owner, unsaved);
         return [item];
@@ -302,15 +302,15 @@ public partial class MainWindow
     private void ShowSharedMarkContextMenu(string owner, RelayProtocol.SharedMark mark, FrameworkElement anchor)
     {
         var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.MousePoint };
-        foreach (var item in BuildSaveSharedMenuItems(owner, [mark], "Uložit do Uložené od ostatních")) menu.Items.Add(item);
-        var hide = new MenuItem { Header = "Skrýt tento marker" };
+        foreach (var item in BuildSaveSharedMenuItems(owner, [mark], Loc.T("Ctx_SaveToSaved"))) menu.Items.Add(item);
+        var hide = new MenuItem { Header = Loc.T("Ctx_HideMarker") };
         hide.Click += (_, _) =>
         {
             _sharedMarkVisible[(owner, mark.Id)] = false;
             RebuildMarkerRows();
             AfterMarkerVisibilityChanged();
         };
-        var hideOwner = new MenuItem { Header = $"Skrýt všechny markery od {owner}" };
+        var hideOwner = new MenuItem { Header = Loc.F("Ctx_HideAllFrom", owner) };
         hideOwner.Click += (_, _) =>
         {
             _sharedOwnerVisible[owner] = false;

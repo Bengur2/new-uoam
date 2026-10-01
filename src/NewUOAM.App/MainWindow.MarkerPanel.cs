@@ -311,7 +311,7 @@ public partial class MainWindow
             // "Uložené od ostatních" only appears once something was saved; while searching, a
             // section without matches is left out.
             if ((section == MarkerSection.Saved || searching) && sectionRows.Count == 0) continue;
-            AddSection(rows, section, section == MarkerSection.Own ? "MOJE MARKERY" : "ULOŽENÉ OD OSTATNÍCH", sectionCount, sectionRows, searching);
+            AddSection(rows, section, Loc.T(section == MarkerSection.Own ? "Panel_SectionOwn" : "Panel_SectionSaved"), sectionCount, sectionRows, searching);
         }
         AddSharedSection(rows, query);
 
@@ -323,9 +323,9 @@ public partial class MainWindow
 
         bool anyMarkerRows = rows.Any(r => r is not MarkerSectionRow);
         MarkerPanelHint.Text =
-            _markers.Count == 0 && !anyMarkerRows ? "Žádné markery nejsou načtené. Složku s markery nastavíš v Mapa → Nastavení."
-            : !anyMarkerRows && searching ? "Nic nenalezeno."
-            : !anyMarkerRows ? $"Na této mapě nejsou žádné markery (dalších {otherFacets} je na jiných mapách)."
+            _markers.Count == 0 && !anyMarkerRows ? Loc.T("Panel_NothingLoaded")
+            : !anyMarkerRows && searching ? Loc.T("Panel_NothingFound")
+            : !anyMarkerRows ? Loc.F("Panel_NoneOnFacet", otherFacets)
             : "";
         MarkerPanelHint.Visibility = MarkerPanelHint.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdateMarkerCount();
@@ -368,12 +368,12 @@ public partial class MainWindow
         }
         if (ShowMarkersCheckBox.IsChecked != true)
         {
-            MarkerCountText.Text = "vypnuté";
+            MarkerCountText.Text = Loc.T("Panel_CountOff");
             return;
         }
         int shown = _markers.Count(m => m.Entry.MapIndex == _currentFacetIndex && IsMarkerVisible(m))
                     + _sharedMarks.Sum(kv => kv.Value.Count(m => m.Map == _currentFacetIndex && IsSharedMarkShown(kv.Key, m)));
-        MarkerCountText.Text = $"{shown} zobrazeno";
+        MarkerCountText.Text = Loc.F("Panel_CountShown", shown);
     }
 
     private void OnMarkerCategoryVisibilityChanged(CheckableMarkerRow row)
@@ -450,13 +450,13 @@ public partial class MainWindow
         {
             MarkerSectionRow { Section: MarkerSection.Own } => BuildUnshareAllMenuItems(),
             MarkerSectionRow { Section: MarkerSection.Saved } =>
-                BuildMoveToOwnMenuItems(_markers.Where(m => IsSavedSharedFile(m.FilePath)).ToList(), "Přesunout vše do Moje markery"),
+                BuildMoveToOwnMenuItems(_markers.Where(m => IsSavedSharedFile(m.FilePath)).ToList(), Loc.T("Ctx_MoveAllToOwn")),
             MarkerCategoryRow category => WithSeparator(
                 BuildShareMenuItems(CategoryMarkersOnFacet(category.Key), category.Name),
                 BuildMoveToOwnMenuItems(_markerCategories.TryGetValue(category.Key, out var c) ? c.Markers : [],
-                    $"Přesunout kategorii {category.Name} do Moje markery")),
-            SharedOwnerRow owner => BuildSaveSharedMenuItems(owner.Owner, _sharedMarks.GetValueOrDefault(owner.Owner) ?? [], $"Uložit vše od {owner.Owner}"),
-            SharedMarkRow shared => BuildSaveSharedMenuItems(shared.Owner, [shared.Mark], "Uložit do Uložené od ostatních"),
+                    Loc.F("Ctx_MoveCategoryToOwn", category.Name))),
+            SharedOwnerRow owner => BuildSaveSharedMenuItems(owner.Owner, _sharedMarks.GetValueOrDefault(owner.Owner) ?? [], Loc.F("Ctx_SaveAllFrom", owner.Owner)),
+            SharedMarkRow shared => BuildSaveSharedMenuItems(shared.Owner, [shared.Mark], Loc.T("Ctx_SaveToSaved")),
             _ => [],
         };
         if (items.Count == 0) return;

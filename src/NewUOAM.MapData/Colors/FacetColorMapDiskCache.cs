@@ -18,7 +18,9 @@ namespace NewUOAM.MapData.Colors;
 /// </summary>
 public static class FacetColorMapDiskCache
 {
-    private const int FormatVersion = 1;
+    // 2: one file per StaticsView ("facet0-normal.bin"); version 1 files ("facet0.bin") were built
+    // with the old draw-the-topmost-static-always rule and are deleted on the next save.
+    private const int FormatVersion = 2;
     private static readonly byte[] Magic = "NUOAMCM1"u8.ToArray();
 
     private static string CacheDirFor(string clientDirectory)
@@ -29,39 +31,64 @@ public static class FacetColorMapDiskCache
         return Path.Combine(root, hash);
     }
 
-    private static string CacheFilePath(string clientDirectory, int facetIndex) =>
+    private static string CacheFilePath(string clientDirectory, int facetIndex, StaticsView view) =>
+        Path.Combine(CacheDirFor(clientDirectory), $"facet{facetIndex}-{view.ToString().ToLowerInvariant()}.bin");
+
+    private static string LegacyCacheFilePath(string clientDirectory, int facetIndex) =>
         Path.Combine(CacheDirFor(clientDirectory), $"facet{facetIndex}.bin");
 
-    public static bool TryLoad(string clientDirectory, int facetIndex, IReadOnlyList<string> sourceFiles, out FacetColorMap? map)
+    /// <summary>Whether a still-valid cache file exists for this facet and view - reads only its
+    /// header, not the ~100 MB of pixels (used to skip prebuilding views that are already there).</summary>
+    public static bool IsCurrent(string clientDirectory, int facetIndex, StaticsView view, IReadOnlyList<string> sourceFiles)
+    {
+        string path = CacheFilePath(clientDirectory, facetIndex, view);
+        if (!File.Exists(path)) return false;
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var reader = new BinaryReader(stream);
+            return HeaderMatches(reader, sourceFiles);
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>Magic, format version and every source file's (path, mtime, length) as recorded.</summary>
+    private static bool HeaderMatches(BinaryReader reader, IReadOnlyList<string> sourceFiles)
+    {
+        byte[] magic = reader.ReadBytes(Magic.Length);
+        if (!magic.AsSpan().SequenceEqual(Magic)) return false;
+        if (reader.ReadInt32() != FormatVersion) return false;
+
+        int fileCount = reader.ReadInt32();
+        if (fileCount != sourceFiles.Count) return false;
+
+        foreach (string sourceFile in sourceFiles)
+        {
+            string storedPath = reader.ReadString();
+            long storedWriteTicks = reader.ReadInt64();
+            long storedLength = reader.ReadInt64();
+
+            if (!string.Equals(storedPath, sourceFile, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!File.Exists(sourceFile)) return false;
+
+            var info = new FileInfo(sourceFile);
+            if (info.LastWriteTimeUtc.Ticks != storedWriteTicks || info.Length != storedLength) return false;
+        }
+        return true;
+    }
+
+    public static bool TryLoad(string clientDirectory, int facetIndex, StaticsView view, IReadOnlyList<string> sourceFiles, out FacetColorMap? map)
     {
         map = null;
-        string path = CacheFilePath(clientDirectory, facetIndex);
+        string path = CacheFilePath(clientDirectory, facetIndex, view);
         if (!File.Exists(path)) return false;
 
         try
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             using var reader = new BinaryReader(stream);
-
-            byte[] magic = reader.ReadBytes(Magic.Length);
-            if (!magic.AsSpan().SequenceEqual(Magic)) return false;
-            if (reader.ReadInt32() != FormatVersion) return false;
-
-            int fileCount = reader.ReadInt32();
-            if (fileCount != sourceFiles.Count) return false;
-
-            foreach (string sourceFile in sourceFiles)
-            {
-                string storedPath = reader.ReadString();
-                long storedWriteTicks = reader.ReadInt64();
-                long storedLength = reader.ReadInt64();
-
-                if (!string.Equals(storedPath, sourceFile, StringComparison.OrdinalIgnoreCase)) return false;
-                if (!File.Exists(sourceFile)) return false;
-
-                var info = new FileInfo(sourceFile);
-                if (info.LastWriteTimeUtc.Ticks != storedWriteTicks || info.Length != storedLength) return false;
-            }
+            if (!HeaderMatches(reader, sourceFiles)) return false;
 
             int width = reader.ReadInt32();
             int height = reader.ReadInt32();
@@ -75,7 +102,7 @@ public static class FacetColorMapDiskCache
                 read += n;
             }
 
-            map = FacetColorMap.FromRawBgra(width, height, bgra);
+            map = FacetColorMap.FromRawBgra(width, height, view, bgra);
             return true;
         }
         catch (IOException) { return false; } // includes EndOfStreamException (truncated cache file)
@@ -88,7 +115,7 @@ public static class FacetColorMapDiskCache
         {
             string dir = CacheDirFor(clientDirectory);
             Directory.CreateDirectory(dir);
-            string path = CacheFilePath(clientDirectory, facetIndex);
+            string path = CacheFilePath(clientDirectory, facetIndex, map.View);
             string tempPath = path + ".tmp";
 
             using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -113,6 +140,9 @@ public static class FacetColorMapDiskCache
             }
 
             File.Move(tempPath, path, overwrite: true);
+
+            string legacy = LegacyCacheFilePath(clientDirectory, facetIndex);
+            if (File.Exists(legacy)) File.Delete(legacy);
         }
         catch (IOException)
         {

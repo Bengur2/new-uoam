@@ -17,6 +17,8 @@ has a detailed section further down - this list is just the map of what exists.
 | Variant B1 - packet proxy | **paused** (game hop is encrypted), UI commented out | "NewUOAM.Positioning" |
 | Variant B2 - ReadProcessMemory of `OrionUO64.exe` | done, live (facet hardcoded 0); known builds by hash + auto-locate for unknown ones; **automatic client tracking, no Start/Stop** (2026-09-28) | "NewUOAM.Positioning" + "MemoryScanner" + "Automatic client tracking" |
 | Menu bar (Mapa/Online/Klient dialogs), map-only mode, window placement memory, auto-load of map + markers | done | "Menu bar", "Window placement memory", "Auto-load" |
+| Map views like old UOAM (Normal / X-ray, Show / Hide statics; rules read off old UOAM's own renders) | done 2026-10-01, matches old UOAM's BMPs 100% / 99.9% / 100% | "Map views" |
+| UI language cs / sk / en (Mapa > Jazyk, controls only) | done 2026-10-01, UIA-tested live switching + restart | "UI language" |
 | Marker overlay (UOAM `.map`/`.csv`, 199 icons, hover label) | done | "Marker overlay" |
 | Side panel = marker browser (sections, categories, search, fly-to) | done | "Side panel = marker browser" |
 | Sharing markers with the room (hidden by default at receivers, save to `shared_markers.map`) | done, server deployed 2026-09-29 | "Sharing markers with the room" |
@@ -27,7 +29,7 @@ has a detailed section further down - this list is just the map of what exists.
 | Map chat shown inside the UO client (UOAssist API via Orion Assistant) | done, verified live | "Map chat inside the UO client" |
 | In-game commands `-c`, `-c name>text`, `-panic`, `-unpanic` (UOAssist ADD_CMD, bridge process) | done, verified with simulated OA input; server deployed 2026-09-25 (live test 20/20) | "In-game commands" |
 | Track reports `-t name, name` + `TrackPlayers.oajs` + track map window | done 2026-09-30, loopback 11/11 + real app with a local relay; relay deployed 2026-09-30 (live 6/6); script's first live run pending | "Track reports (-t)" |
-| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; latest release **v1.0.3** (live feed, zip and setup verified) | "Self-update (player package)" + `docs/RELEASE.md` |
+| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; latest release **v1.0.4** (2026-10-01: map views + UI language) | "Self-update (player package)" + `docs/RELEASE.md` |
 | Installer `NewUOAM-Setup.exe` (Inno Setup, per-user, uninstall keeps player files) + website https://bengur2.github.io/new-uoam/ (`docs/index.html`, GitHub Pages) | done 2026-10-01, both live | "Self-update (player package)" → "Installer + web" |
 | Public repo `Bengur2/new-uoam` (one clean commit, no account names/emails; old history in private `new-uoam-private`), commits as `168770972+Bengur2@users.noreply.github.com` | since 2026-10-01 | `HANDOVER.md` 6/6b |
 
@@ -106,11 +108,12 @@ and the file swap. `NewUOAM.App` and `tools/NewUOAM.ReleaseTool` (publisher side
   `staidxN.mul` (12-byte-per-block index: int32 offset into staticsN.mul or -1, int32 length,
   int32 unused) + `staticsN.mul` (7-byte records: ushort tileId, byte x, byte y [0-7 within the
   block], sbyte z, short hue). Only the `.mul` path exists - both test clients have it directly,
-  no `.uop` variant needed yet. Wired into `MapFacet` (`GetStaticsAt`/`TryGetTopStatic`, its own
+  no `.uop` variant needed yet. Wired into `MapFacet` (`GetStaticsAt`/`TryGetDrawnStatic`, its own
   `LruCache<long, IReadOnlyList<StaticItem>>` alongside the land-block cache) and into
-  `FacetColorMap.Build` / `MainWindow.Redraw`'s fallback path: the **topmost** (highest Z) static
-  on a tile is drawn instead of the land tile, matching how the in-game radar map only ever shows
-  one thing per tile. Its radar color comes from `radarcol.mul` at index `tileId + 0x4000` (the
+  `FacetColorMap.Build`/`TileColor` (also `RenderRegion`'s fallback path): at most one static per
+  tile is drawn instead of the land tile, matching how the in-game radar map only ever shows one
+  thing per tile. **Which one depends on the view** (`StaticsView`, see "Map views"; until
+  2026-10-01 it was simply the topmost one, always). Its radar color comes from `radarcol.mul` at index `tileId + 0x4000` (the
   same flat table land tiles use - land occupies 0x0000-0x3FFF, item/static graphics continue
   from 0x4000, confirmed by the table's own size: 65536 = 16384 + 49152). Empirically validated
   against `C:\Moria`/Felucca (`tools/UopProbe`): 2.76M statics total, no out-of-range X/Y, and a
@@ -132,7 +135,8 @@ and the file swap. `NewUOAM.App` and `tools/NewUOAM.ReleaseTool` (publisher side
   falls back to the raw `MapFacet.GetLandTile` path for a facet whose color map isn't ready yet,
   so the app stays usable (just slower for that facet) during the initial preload window.
 - `Colors/FacetColorMapDiskCache.cs` — persists a built `FacetColorMap` to
-  `%LocalAppData%\NewUOAM\colormap-cache\<sha1(clientDir)>\facet{N}.bin` (`UoClientData.GetOrBuildColorMap`
+  `%LocalAppData%\NewUOAM\colormap-cache\<sha1(clientDir)>\facet{N}-{view}.bin` (one per `StaticsView`,
+  format version 2; a version-1 `facet{N}.bin` is deleted on the next save) (`UoClientData.GetOrBuildColorMap`
   tries this before falling back to `FacetColorMap.Build`) so the several-seconds-per-facet decode
   doesn't have to happen on every single app launch - the user explicitly asked for exactly this
   ("aby mapa zůstala načtená i po vypnutí programu"). Invalidation is automatic and exact: the
@@ -625,6 +629,80 @@ third section of Mapa > Nastavení.
 - **Deployed 2026-09-29.** The previous binary is kept as `NewUOAM.RelayServer.prev`. The same
   protocol test (all 10 relay checks) passed live against `89.168.122.175:27980` in a throwaway
   room, which was deleted afterwards.
+
+**Map views (2026-10-01, user's request):** Mapa > Normální pohled / X-ray pohled and Zobrazit /
+Skrýt statiky, like old UOAM's Normal view / X-ray view / Show / Hide statics. Default: Normal with
+statics. With statics hidden the map is land only, so Normal/X-ray are disabled (as in old UOAM).
+- **The rules come from old UOAM's own output, not its docs.** Old UOAM saves its renders per view
+  (`MAP0-1.BMP` normal, `-X1` X-ray, `-NS1` no statics; 8bpp, 1 px/tile; `-2/-4/-8` are zoomed out).
+  `C:\Games\Endor\UO Auto-Map` has full-size ones next to the client files they were made from
+  (`C:\Games\Endor\Client\Muls`). Each pixel was matched to the land or one of the tile's statics
+  by radar color, and candidate rules were scored:
+  - Normal: the topmost static (highest Z, the **later** one in statics.mul on a tie) if its
+    `Z >= land Z`, else the land - 99.997%. The old code (topmost, always, first on a tie) scored
+    87%: buried statics showed through, which is why the map looked X-ray-ish.
+  - X-ray: the topmost static with `Z <= land Z`, else the land (surface buildings and trees
+    vanish, cellars and caves show) - 99.64%.
+  - Hidden: land only - 100% (the pixel depends on the land tile id alone).
+  - tiledata.mul item height plays no part (every `Z + height` variant scored worse).
+  - Moria's renders give the same Normal rule at 97.8% (its BMPs are probably older than its map
+    files).
+  - The app's own `FacetColorMap.TileColor` against the Endor BMPs: Normal 100%, X-ray 99.9%,
+    Hidden 100% of the unambiguous tiles.
+- Code: `StaticsView` + `MapFacet.TryGetDrawnStatic` (MapData), `MainWindow.MapView.cs` (menu,
+  `AppSettings.ShowStatics`/`XRayView`). Color maps are kept per (facet, view). A switch drops the
+  other view's maps from memory (~112 MiB per big facet); `EnsureCache` rebuilds because
+  `_cacheStaticsView` differs; `PreloadColorMapsAsync` loads or builds the new view, the facet on
+  screen first. A newer preload cancels an older one (`FacetColorMap.Build` checks the token every
+  64 rows). Until a facet's map is ready, `RenderRegion` decodes the same view on demand. The first
+  switch to a view costs a build (several seconds for the DP facet); after that it's a disk-cache
+  load.
+- **Switching speed (user's report: 2-3 s per switch, old UOAM instant).** Measured on DP: a
+  view from the disk cache loads in ~50 ms, but drawing the cache region decoded on demand took
+  ~0.8 s at 2 px/tile and more zoomed out, and that's what the first version did (it dropped the
+  old view and redrew at once). Now `SetStaticsView` keeps drawing the old view
+  (`_drawnStaticsView`) until `TryLoadCachedColorMap` has the facet on screen in memory, then
+  redraws; only a view not on disk yet is drawn on demand while it builds. And like old UOAM
+  (which renders every view at load), `PrebuildOtherViewsAsync` quietly builds the other views
+  of every facet into the disk cache after the load; views already there cost a header check
+  (`FacetColorMapDiskCache.IsCurrent`). Building one big facet's view takes ~16 s. Measured via
+  UI Automation on Moria: the screen changes 130-230 ms after the click (including the test's
+  own screenshot polling).
+- **Memory:** a released view's arrays sit on the large object heap, which a normal GC doesn't
+  compact: 401 MB before switching grew to 2.2 GB after six switches. `ReturnFreedColorMaps`
+  (a compacting GC after a switch's preload and after the prebuild) keeps it at 720 MB.
+- **Second comparison, against what the user actually compared** (`C:\temp\Moria` and old
+  UOAM's `MAP25166902-1/-X2/-NS2.BMP` there, every tile): color within the palette's
+  quantization on 99.71% (Normal), 99.67% (X-ray), 99.99% (no statics). The rest is mostly a few
+  areas where the map data changed after old UOAM made its BMPs: around 3680,2660 a whole town is
+  laid out differently (25% of pixels differ there, ~0.3% around 2367,2734). **Old UOAM doesn't
+  notice such changes** - it keeps showing its saved BMP (named by the map file's size), while
+  this app rebuilds when a source file's mtime or size changes. A copy with only
+  `map0LegacyMUL.uop` gave identical results, so it isn't a .mul/.uop difference. The half-size
+  X2/NS2 images sample the top-left tile of each 2x2.
+- Verified in the real app via UI Automation: the menu switches, the disabled state with statics
+  hidden, the saved settings and the visible change on screen.
+
+**UI language (2026-10-01, user's request):** Mapa > Jazyk > Čeština / Slovenčina / English
+(`AppSettings.Language`, default cs, applied in `App.OnStartup` before the first window).
+- **Only controls are translated**: menus, dialogs, buttons, labels, tooltips, the marker panel,
+  marker context menus, and the fixed texts of the track/update/admin/create-room/chat windows.
+  Status-bar lines, error dialogs (101-107...), chat and system lines and everything shown in the
+  game stay Czech (user's call: "jen ovládání mapy, ne hlášky"). Old UOAM's own English names
+  (Track Player, New Label..., Go to location..., Edit Label, Drop or Pickup Marker, Edit/Delete)
+  stay English in every language.
+- `UiStrings.All` is the one table (key, cs, sk, en); Czech is the original wording. `Loc.Apply`
+  writes every key into `Application.Resources` and XAML uses `{DynamicResource Key}`, so open
+  windows switch live. Code uses `Loc.T`/`Loc.F`/`Loc.Plural` (Czech/Slovak plural forms
+  `_1`/`_2`/`_5`), or `SetResourceReference` for a text that is one whole key. Texts that code
+  keeps on screen are refreshed from `Loc.Changed` (`MainWindow.ApplyLocalizedTexts`,
+  `TrackMapWindow.UpdateHeader`).
+- **Adding a control text:** add a row to `UiStrings.All` (all three languages) and reference its
+  key. A duplicate key throws at startup. A scratch check verified that every used key exists,
+  every key is used, and every row has the same `{n}` placeholders in all three languages.
+- Verified via UI Automation: cs -> en -> sk live (menu bar, title "(dev)", both settings
+  dialogs' titles), the setting survives a restart, then back to cs. Screenshots: the English
+  settings dialog, the Slovak online dialog, the English marker panel.
 
 **Menu bar (2026-09-28, user's request, modeled on old UOAM's File/Zoom/Places/...):** `MainMenu`
 under the title bar, hidden in map-only mode (`SetMapOnlyMode`). So far:

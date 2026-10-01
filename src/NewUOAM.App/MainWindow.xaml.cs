@@ -189,6 +189,10 @@ public partial class MainWindow : Window
         ClientDirTextBox.Text = settings.ClientDirectory ?? "";
         ShowCoordinatesCheckBox.IsChecked = settings.ShowCoordinates;
         ShowCompassCheckBox.IsChecked = settings.ShowCompass;
+        _showStatics = settings.ShowStatics;
+        _xRayView = settings.XRayView;
+        _drawnStaticsView = CurrentStaticsView;
+        UpdateStaticsViewMenu();
         // string.IsNullOrWhiteSpace, not just "?? default" - SaveSettings() always writes
         // whatever's currently in the box, including "" if it was ever left blank when the app
         // closed, and "" ?? default never triggers (only a true null would).
@@ -224,12 +228,9 @@ public partial class MainWindow : Window
         _chatBounds = settings.ChatWindowBounds;
         _markerCategoryVisible = settings.MarkerCategories ?? new();
         RebuildMarkerRows(); // empty until markers load - shows the "nothing loaded" hint
-        VersionMenuItem.Header = $"Verze {App.CurrentVersion}";
-        // Version in the title (user's request 2026-10-01); a build from bin\ says so, to tell it
-        // apart from the installed package when both run.
-        Title = PackageInstaller.IsInstalledPackage(AppContext.BaseDirectory)
-            ? $"new UOAM {App.CurrentVersion}"
-            : $"new UOAM {App.CurrentVersion} (vývoj)";
+        BuildLanguageMenu();
+        ApplyLocalizedTexts(); // version menu item, title...
+        Loc.Changed += ApplyLocalizedTexts;
         _applyingLoadedSettings = false;
         StartClientTracking();
 
@@ -303,6 +304,9 @@ public partial class MainWindow : Window
         ClientDirectory = ClientDirTextBox.Text.Trim(),
         ShowCoordinates = ShowCoordinatesCheckBox.IsChecked == true,
         ShowCompass = ShowCompassCheckBox.IsChecked == true,
+        Language = Loc.Current,
+        ShowStatics = _showStatics,
+        XRayView = _xRayView,
         RelayServerAddress = RelayServerTextBox.Text.Trim(),
         MultiplayerDisplayName = DisplayNameTextBox.Text.Trim(),
         MultiplayerColor = _playerColor,
@@ -382,7 +386,7 @@ public partial class MainWindow : Window
 
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "Vyber složku se soubory mapy (map0.mul / map0LegacyMUL.uop)" };
+        var dialog = new OpenFolderDialog { Title = Loc.T("Set_BrowseMapTitle") };
         if (dialog.ShowDialog() == true)
         {
             ClientDirTextBox.Text = dialog.FolderName;
@@ -406,8 +410,10 @@ public partial class MainWindow : Window
         LoadMapButton.IsEnabled = false;
         try
         {
+            _preloadCts?.Cancel(); // before Dispose: a background build must not hit closed files
             _clientData?.Dispose();
             var clientData = new UoClientData(dir);
+            _drawnStaticsView = CurrentStaticsView;
             _clientData = clientData;
 
             if (!clientData.TryGetFacet(0, out var facet))
@@ -431,16 +437,8 @@ public partial class MainWindow : Window
             Log($"Načteno: {facet.Name} ({facet.WidthTiles}x{facet.HeightTiles}). Předpočítávám mapy…");
             SaveSettings(); // remember the client path even if the app never closes cleanly
 
-            var progress = new Progress<string>(msg => Log(msg));
-            await clientData.PreloadAllColorMapsAsync(progress);
-
-            if (_clientData == clientData) // user might have loaded a different folder meanwhile
-            {
-                Log("Mapy předpočítané - panning/zoom/otočení jsou teď rychlé.");
-                RequestRedraw();
-            }
-
-            return true;
+            // In the current view (Normal/X-ray/no statics, MainWindow.MapView.cs).
+            return await PreloadColorMapsAsync(clientData);
         }
         catch (Exception ex)
         {
@@ -575,13 +573,13 @@ public partial class MainWindow : Window
             ClientMenu.Items.Add(item);
         }
         if (_clientItems.Count == 0)
-            ClientMenu.Items.Add(new MenuItem { Header = "Žádný klient OrionUO neběží", IsEnabled = false });
+            ClientMenu.Items.Add(new MenuItem { Header = Loc.T("Client_None"), IsEnabled = false });
         ClientMenu.Items.Add(new Separator());
         var hint = new MenuItem
         {
-            Header = "Mapa sama sleduje první spuštěný klient",
+            Header = Loc.T("Client_Auto"),
             IsEnabled = false,
-            ToolTip = "Když sledovaný klient zavřeš, mapa přejde na další běžící. Když žádný neběží, ukazuje 0,0 a čeká na spuštění klienta.",
+            ToolTip = Loc.T("Client_AutoTip"),
         };
         ToolTipService.SetShowOnDisabled(hint, true);
         ClientMenu.Items.Add(hint);
@@ -881,8 +879,8 @@ public partial class MainWindow : Window
     private void ApplyCustomHex()
     {
         string? hex = RelayProtocol.NormalizeColor(PlayerColorHexTextBox.Text);
-        string? error = hex is null ? "Zadej barvu ve tvaru #RRGGBB, např. #FF8800."
-            : !PlayerColors.IsReadable(hex) ? "Tahle barva je moc tmavá - na mapě ani v chatu by nebyla čitelná. Zkus světlejší."
+        string? error = hex is null ? Loc.T("Set_ColorFormatError")
+            : !PlayerColors.IsReadable(hex) ? Loc.T("Set_ColorTooDark")
             : null;
         if (error is not null)
         {
@@ -917,7 +915,7 @@ public partial class MainWindow : Window
         _selfMarkerRgb = (Convert.ToByte(_selfMarkerColor[0..2], 16), Convert.ToByte(_selfMarkerColor[2..4], 16), Convert.ToByte(_selfMarkerColor[4..6], 16));
         Brush brush = PlayerColors.ToBrush(_selfMarkerColor);
         SelfMarkerColorSwatch.Background = brush;
-        SelfMarkerColorText.Text = _selfMarkerColor == DefaultSelfMarkerColor ? $"#{_selfMarkerColor} (výchozí)" : $"#{_selfMarkerColor}";
+        SelfMarkerColorText.Text = _selfMarkerColor == DefaultSelfMarkerColor ? Loc.F("Set_SelfColorDefault", _selfMarkerColor) : $"#{_selfMarkerColor}";
         SelfMarkerColorResetButton.IsEnabled = _selfMarkerColor != DefaultSelfMarkerColor;
         SelfArrow.Fill = brush;
     }
@@ -955,7 +953,7 @@ public partial class MainWindow : Window
             ApplySelfMarkerColor(hex);
             return;
         }
-        SelfMarkerColorHexError.Text = "Zadej barvu ve tvaru #RRGGBB, např. #FF8800.";
+        SelfMarkerColorHexError.Text = Loc.T("Set_ColorFormatError");
         SelfMarkerColorHexError.Visibility = Visibility.Visible;
     }
 
@@ -1118,7 +1116,7 @@ public partial class MainWindow : Window
         if (ChatUnreadBadge is null) return;
         bool show = _unreadChat > 0 && ShowUnreadChatCheckBox.IsChecked == true;
         ChatUnreadText.Text = _unreadChat > 99 ? "99+" : _unreadChat.ToString();
-        ChatUnreadBadge.ToolTip = $"Nepřečtené zprávy v chatu: {_unreadChat} (kliknutím otevřeš chat)";
+        ChatUnreadBadge.ToolTip = Loc.F("Map_UnreadTip", _unreadChat);
         ChatUnreadBadge.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -1592,7 +1590,7 @@ public partial class MainWindow : Window
 
     private void BrowseMarkersButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "Vyber složku s marker soubory (.map/.csv)" };
+        var dialog = new OpenFolderDialog { Title = Loc.T("Set_BrowseMarkersTitle") };
         if (dialog.ShowDialog() == true)
         {
             MarkersDirTextBox.Text = dialog.FolderName;
@@ -1613,7 +1611,7 @@ public partial class MainWindow : Window
     private void UpdateMarkersDirPlaceholder()
     {
         string mapDir = ClientDirTextBox.Text.Trim();
-        MarkersDirPlaceholder.Text = mapDir.Length > 0 ? $"(složka mapy: {mapDir})" : "(složka mapy)";
+        MarkersDirPlaceholder.Text = mapDir.Length > 0 ? Loc.F("Set_MarkersDirHint", mapDir) : Loc.T("Set_MarkersDirHintEmpty");
         MarkersDirPlaceholder.Visibility = MarkersDirTextBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -1879,7 +1877,7 @@ public partial class MainWindow : Window
     private void ToggleRotationButton_Click(object sender, RoutedEventArgs e)
     {
         _renderMode = _renderMode == MapRenderMode.Rotated45 ? MapRenderMode.NorthUp : MapRenderMode.Rotated45;
-        ToggleRotationButton.Content = _renderMode == MapRenderMode.Rotated45 ? "Pohled: otočený 45°" : "Pohled: sever nahoře";
+        ToggleRotationButton.SetResourceReference(ContentProperty, _renderMode == MapRenderMode.Rotated45 ? "Set_Rotated" : "Set_NorthUp");
         UpdateCompassOverlay();
         Redraw();
         _trackWindow?.Redraw(); // it uses the main map's projection
@@ -2003,7 +2001,7 @@ public partial class MainWindow : Window
             // One panic per room, anyone may turn it off (also Space over the map, "-panic").
             var panicItem = new MenuItem
             {
-                Header = _roomPanic is { } p && !_myPanic ? $"Vypnout Panic! ({p})" : "Panic!",
+                Header = _roomPanic is { } p && !_myPanic ? Loc.F("Ctx_PanicOff", p) : "Panic!",
                 IsCheckable = true,
                 IsChecked = _roomPanic is not null,
             };
@@ -2743,7 +2741,7 @@ public partial class MainWindow : Window
         var menu = new ContextMenu { PlacementTarget = placementTarget, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
         foreach (var item in BuildDropMarkerMenuItems((marker.Entry.X, marker.Entry.Y))) menu.Items.Add(item);
         // Sharing only while connected; moving only for a marker saved from others.
-        var shareItems = WithSeparator(BuildShareMenuItems([marker], null), BuildMoveToOwnMenuItems([marker], "Přesunout do Moje markery"));
+        var shareItems = WithSeparator(BuildShareMenuItems([marker], null), BuildMoveToOwnMenuItems([marker], Loc.T("Ctx_MoveToOwn")));
         if (shareItems.Count > 0)
         {
             menu.Items.Add(new Separator());
@@ -2953,21 +2951,21 @@ public partial class MainWindow : Window
     private readonly Dictionary<FrameworkElement, HostedPanelWindow> _panelWindows = new();
 
     private void MapSettingsMenuItem_Click(object sender, RoutedEventArgs e) =>
-        ShowPanelWindow("Nastavení mapy", ClientSettingsContent);
+        ShowPanelWindow("Dlg_MapSettings", ClientSettingsContent);
 
     private void OnlineMenuItem_Click(object sender, RoutedEventArgs e) =>
-        ShowPanelWindow("Připojit k mapě", OnlineSettingsContent);
+        ShowPanelWindow("Dlg_Connect", OnlineSettingsContent);
 
     /// <summary>Opens the dialog for one of DialogPanelStore's panels, or brings it to the front
     /// if it's already open.</summary>
-    private void ShowPanelWindow(string title, FrameworkElement panel)
+    private void ShowPanelWindow(string titleKey, FrameworkElement panel)
     {
         if (_panelWindows.TryGetValue(panel, out var open))
         {
             open.Activate();
             return;
         }
-        var window = new HostedPanelWindow(title, panel, DialogPanelStore, this);
+        var window = new HostedPanelWindow(titleKey, panel, DialogPanelStore, this);
         window.Closed += (_, _) => _panelWindows.Remove(panel);
         _panelWindows[panel] = window;
         window.Show();
@@ -3182,6 +3180,7 @@ public partial class MainWindow : Window
     private MapRenderMode _cacheMode;
     private double _cachePixelsPerTile;
     private int _cacheFacetIndex = -1;
+    private StaticsView _cacheStaticsView;
     private const int CacheMarginFactor = 3; // cache is this many viewports wide/tall (margin = (factor-1)/2 viewports each side)
 
     private void Redraw()
@@ -3275,7 +3274,7 @@ public partial class MainWindow : Window
         int desiredHeight = viewportHeight * factor;
 
         bool staleParams = _cacheBgra is null || _cacheMode != _renderMode || _cachePixelsPerTile != _pixelsPerTile
-            || _cacheFacetIndex != _currentFacetIndex || _cacheWidth != desiredWidth || _cacheHeight != desiredHeight;
+            || _cacheFacetIndex != _currentFacetIndex || _cacheStaticsView != _drawnStaticsView || _cacheWidth != desiredWidth || _cacheHeight != desiredHeight;
 
         bool needsRegenerate = staleParams;
         if (!needsRegenerate)
@@ -3309,6 +3308,7 @@ public partial class MainWindow : Window
         _cacheMode = _renderMode;
         _cachePixelsPerTile = _pixelsPerTile;
         _cacheFacetIndex = _currentFacetIndex;
+        _cacheStaticsView = _drawnStaticsView;
         _cacheBgra = RenderRegion(_currentFacet!, _cacheWidth, _cacheHeight, _cacheCenterX, _cacheCenterY);
     }
 
@@ -3328,8 +3328,9 @@ public partial class MainWindow : Window
         int stride = width * 4;
         var pixels = new byte[stride * height];
         var radar = _clientData?.RadarColors;
+        var view = _drawnStaticsView;
         FacetColorMap? colorMap = null;
-        _clientData?.TryGetColorMap(facetIndex, out colorMap);
+        _clientData?.TryGetColorMap(facetIndex, view, out colorMap);
 
         int cx = width / 2, cy = height / 2;
 
@@ -3380,25 +3381,7 @@ public partial class MainWindow : Window
                     {
                         // Color map for this facet isn't precomputed yet (still loading, or the
                         // client folder doesn't have it) - fall back to decoding on demand.
-                        if (facet.HasStatics && facet.TryGetTopStatic(tileX, tileY, out var top) && radar is not null)
-                        {
-                            var c = radar.GetColor((ushort)(top.TileId + 0x4000));
-                            lr = c.R; lg = c.G; lb = c.B;
-                        }
-                        else
-                        {
-                            var tile = facet.GetLandTile(tileX, tileY);
-                            if (radar is not null)
-                            {
-                                var c = radar.GetColor(tile.TileId);
-                                lr = c.R; lg = c.G; lb = c.B;
-                            }
-                            else
-                            {
-                                byte gray = (byte)Math.Clamp(128 + tile.Z * 3, 0, 255);
-                                lr = lg = lb = gray;
-                            }
-                        }
+                        FacetColorMap.TileColor(facet, radar, view, tileX, tileY, out lr, out lg, out lb);
                     }
                     lastTileX = tileX; lastTileY = tileY;
                 }

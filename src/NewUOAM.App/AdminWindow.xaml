@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="new UOAM - Admin místností" Height="680" Width="600" MinWidth="460" MinHeight="480"
+        Title="{DynamicResource Adm_Title}" Height="680" Width="600" MinWidth="460" MinHeight="480"
         Background="#FF1E1E1E">
     <!-- Room admin (2026-10-01 rework): the room list with source and dates (never passwords or
          players), multi-select delete, the switch for player room creation, and creating an
@@ -20,7 +20,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Text="ADMIN MÍSTNOSTÍ" Foreground="White" FontWeight="Bold" FontSize="15" Margin="0,0,0,12"/>
+            <TextBlock Text="{DynamicResource Adm_Header}" Foreground="White" FontWeight="Bold" FontSize="15" Margin="0,0,0,12"/>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -28,11 +28,11 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="Adresa relay serveru (host:port)" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                    <TextBlock Text="{DynamicResource Adm_Address}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
                     <TextBox x:Name="ServerAddressTextBox" Padding="4,4"/>
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <TextBlock Text="Admin heslo" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                    <TextBlock Text="{DynamicResource Adm_Password}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
                     <PasswordBox x:Name="AdminPasswordBox" Padding="4,4" KeyDown="AdminPasswordBox_KeyDown"/>
                 </StackPanel>
             </Grid>
@@ -40,17 +40,17 @@
 
         <Border Grid.Row="1" Background="#FF252528" BorderBrush="#FF3F3F46" BorderThickness="1" Padding="10,8" Margin="0,12,0,0">
             <StackPanel>
-                <CheckBox x:Name="PlayerCreationCheckBox" Content="Hráči si můžou zakládat místnosti" Foreground="White"
+                <CheckBox x:Name="PlayerCreationCheckBox" Content="{DynamicResource Adm_PlayerCreation}" Foreground="White"
                           IsEnabled="False" Click="PlayerCreationCheckBox_Click"/>
                 <TextBlock x:Name="PlayerCreationInfo" Foreground="#FF9A9A9A" FontSize="11" TextWrapping="Wrap" Margin="20,2,0,0"
-                           Text="Načti seznam (Obnovit). Při spamu zakládání vypni a spam smaž."/>
+                           Text="{DynamicResource Adm_Hint}"/>
             </StackPanel>
         </Border>
 
         <DockPanel Grid.Row="2" Margin="0,14,0,6" LastChildFill="False">
-            <TextBlock Text="MÍSTNOSTI" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
-            <Button x:Name="RefreshRoomsButton" Content="⟳ Obnovit" Padding="8,2" Margin="10,0,0,0" Click="RefreshRoomsButton_Click"/>
-            <Button x:Name="SelectRecentButton" DockPanel.Dock="Right" Content="Vybrat hráčské za posledních 24 h" Padding="8,2"
+            <TextBlock Text="{DynamicResource Adm_Rooms}" Foreground="#FF9A9A9A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+            <Button x:Name="RefreshRoomsButton" Content="{DynamicResource Adm_Refresh}" Padding="8,2" Margin="10,0,0,0" Click="RefreshRoomsButton_Click"/>
+            <Button x:Name="SelectRecentButton" DockPanel.Dock="Right" Content="{DynamicResource Adm_SelectRecent}" Padding="8,2"
                     IsEnabled="False" Click="SelectRecentButton_Click"/>
         </DockPanel>
 
@@ -63,10 +63,10 @@
                         <ColumnDefinition Width="110"/>
                         <ColumnDefinition Width="110"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Název" Foreground="#FF9A9A9A" FontSize="11" Margin="8,4"/>
-                    <TextBlock Grid.Column="1" Text="Založil" Foreground="#FF9A9A9A" FontSize="11" Margin="4,4"/>
-                    <TextBlock Grid.Column="2" Text="Založeno" Foreground="#FF9A9A9A" FontSize="11" Margin="4,4"/>
-                    <TextBlock Grid.Column="3" Text="Naposledy použita" Foreground="#FF9A9A9A" FontSize="11" Margin="4,4"/>
+                    <TextBlock Grid.Column="0" Text="{DynamicResource Adm_ColName}" Foreground="#FF9A9A9A" FontSize="11" Margin="8,4"/>
+                    <TextBlock Grid.Column="1" Text="{DynamicResource Adm_ColBy}" Foreground="#FF9A9A9A" FontSize="11" Margin="4,4"/>
+                    <TextBlock Grid.Column="2" Text="{DynamicResource Adm_ColCreated}" Foreground="#FF9A9A9A" FontSize="11" Margin="4,4"/>
+                    <TextBlock Grid.Column="3" Text="{DynamicResource Adm_ColLastUsed}" Foreground="#FF9A9A9A" FontSize="11" Margin="4,4"/>
                 </Grid>
                 <ListBox x:Name="RoomsListBox" SelectionMode="Extended" Background="#FF1E1E1E" BorderThickness="0"
                          HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -92,19 +92,19 @@
         </Border>
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,8,0,0">
-            <Button x:Name="DeleteRoomButton" Content="Smazat vybrané" Padding="8,3" IsEnabled="False" Click="DeleteRoomButton_Click"/>
+            <Button x:Name="DeleteRoomButton" Content="{DynamicResource Adm_Delete}" Padding="8,3" IsEnabled="False" Click="DeleteRoomButton_Click"/>
             <TextBlock Foreground="#FF9A9A9A" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"
-                       Text="Ctrl / Shift + klik vybere víc místností."/>
+                       Text="{DynamicResource Adm_MultiHint}"/>
         </StackPanel>
 
         <StackPanel Grid.Row="5">
-            <Expander Header="Nová místnost s vlastním heslem (admin)" Foreground="White" Margin="0,12,0,0">
+            <Expander Header="{DynamicResource Adm_NewRoom}" Foreground="White" Margin="0,12,0,0">
                 <StackPanel Margin="0,8,0,0">
-                    <TextBlock Text="Jméno místnosti" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                    <TextBlock Text="{DynamicResource Adm_RoomName}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
                     <TextBox x:Name="NewRoomNameTextBox" Padding="4,4" Margin="0,0,0,6"/>
-                    <TextBlock Text="Heslo místnosti" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+                    <TextBlock Text="{DynamicResource On_RoomPassword}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
                     <TextBox x:Name="NewRoomPasswordTextBox" Padding="4,4" Margin="0,0,0,8"/>
-                    <Button x:Name="CreateRoomButton" Content="Vytvořit místnost" Padding="8,3" HorizontalAlignment="Left"
+                    <Button x:Name="CreateRoomButton" Content="{DynamicResource Adm_Create}" Padding="8,3" HorizontalAlignment="Left"
                             Click="CreateRoomButton_Click"/>
                 </StackPanel>
             </Expander>

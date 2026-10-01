@@ -92,6 +92,7 @@ public partial class App : Application
             });
         }
 
+        Loc.Apply(AppSettings.Load().Language); // before any window, so DynamicResource texts resolve
         new MainWindow().Show();
     }
 

@@ -10,6 +10,11 @@ public sealed class AppSettings
     public string? ClientDirectory { get; set; }
     public bool ShowCoordinates { get; set; }
     public bool ShowCompass { get; set; }
+    // Mapa menu: Show/Hide statics and Normal/X-ray view (default Normal with statics, as old UOAM).
+    public bool ShowStatics { get; set; } = true;
+    public bool XRayView { get; set; }
+    // UI language of the controls: "cs" (default), "sk", "en" (Mapa > Jazyk, Loc).
+    public string? Language { get; set; }
     public string? RelayServerAddress { get; set; }
     public string? MultiplayerDisplayName { get; set; }
     public string? MultiplayerColor { get; set; }

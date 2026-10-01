@@ -34,13 +34,13 @@
             <!-- Who tracked, where and when ("před 2 min"). -->
             <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,6,40,0" Background="#AA000000"
                     CornerRadius="3" Padding="5,2" IsHitTestVisible="False">
-                <TextBlock x:Name="HeaderText" Foreground="#FFDDDDDD" FontSize="12" TextWrapping="Wrap" Text="Zatím žádný track."/>
+                <TextBlock x:Name="HeaderText" Foreground="#FFDDDDDD" FontSize="12" TextWrapping="Wrap" Text="{DynamicResource Tr_None}"/>
             </Border>
 
             <!-- Close, in normal and map-only mode alike (user's request). -->
             <Button x:Name="CloseButton" Content="✕" Width="26" Height="26" Padding="0" FontSize="13"
                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
-                    ToolTip="Zavřít track mapu" Click="CloseButton_Click"/>
+                    ToolTip="{DynamicResource Tr_CloseTip}" Click="CloseButton_Click"/>
         </Grid>
     </Border>
 </Window>

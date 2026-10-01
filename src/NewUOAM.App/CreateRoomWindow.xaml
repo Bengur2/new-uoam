@@ -1,37 +1,37 @@
 <Window x:Class="NewUOAM.App.CreateRoomWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Založit místnost" Width="380" SizeToContent="Height"
+        Title="{DynamicResource Cr_Title}" Width="380" SizeToContent="Height"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="#FF1E1E1E">
     <!-- Online > Připojit k mapě > Založit místnost… (2026-10-01): a player creates a room on the
          relay; the server generates its password (RelayAdminClient.CreatePlayerRoomAsync). -->
     <StackPanel Margin="16">
         <StackPanel x:Name="RequestPanel">
-            <TextBlock Text="Jméno místnosti" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
+            <TextBlock Text="{DynamicResource Adm_RoomName}" Foreground="Gray" FontSize="11" Margin="0,0,0,2"/>
             <TextBox x:Name="RoomNameTextBox" Padding="4,4" MaxLength="40" TextChanged="RoomNameTextBox_TextChanged"/>
             <TextBlock Foreground="#FF9A9A9A" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
-                       Text="Heslo místnosti vygeneruje server. Pošleš ho lidem, se kterými chceš hrát. Místnost, do které se 3 měsíce nikdo nepřipojí, se sama smaže."/>
+                       Text="{DynamicResource Cr_Help}"/>
             <TextBlock x:Name="ErrorText" Foreground="#FFFF7070" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0" Visibility="Collapsed"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-                <Button x:Name="CreateButton" Content="Založit" Width="90" Padding="0,3" IsDefault="True" IsEnabled="False" Click="CreateButton_Click"/>
-                <Button Content="Zrušit" Width="80" Padding="0,3" Margin="8,0,0,0" IsCancel="True"/>
+                <Button x:Name="CreateButton" Content="{DynamicResource Cr_Create}" Width="90" Padding="0,3" IsDefault="True" IsEnabled="False" Click="CreateButton_Click"/>
+                <Button Content="{DynamicResource Cr_Cancel}" Width="80" Padding="0,3" Margin="8,0,0,0" IsCancel="True"/>
             </StackPanel>
         </StackPanel>
 
         <StackPanel x:Name="DonePanel" Visibility="Collapsed">
             <TextBlock x:Name="DoneTitle" Foreground="White" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap"/>
-            <TextBlock Text="Heslo místnosti" Foreground="Gray" FontSize="11" Margin="0,10,0,2"/>
+            <TextBlock Text="{DynamicResource On_RoomPassword}" Foreground="Gray" FontSize="11" Margin="0,10,0,2"/>
             <DockPanel>
-                <Button x:Name="CopyButton" DockPanel.Dock="Right" Content="Kopírovat" Padding="10,3" Margin="6,0,0,0" Click="CopyButton_Click"/>
+                <Button x:Name="CopyButton" DockPanel.Dock="Right" Content="{DynamicResource Cr_Copy}" Padding="10,3" Margin="6,0,0,0" Click="CopyButton_Click"/>
                 <TextBox x:Name="PasswordTextBox" IsReadOnly="True" FontFamily="Consolas" FontSize="16" Padding="6,4"/>
             </DockPanel>
             <TextBlock Foreground="#FF9A9A9A" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
-                       Text="Heslo si ulož nebo pošli spoluhráčům hned. Server ho nikomu nezobrazí, ani adminovi. Kdo heslo zná, může se do místnosti připojit."/>
+                       Text="{DynamicResource Cr_SaveHint}"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-                <Button Content="Použít heslo" Padding="10,3" IsDefault="True" Click="UseButton_Click"
-                        ToolTip="Vyplní heslo v Online &gt; Připojit k mapě. Pak klikni na Připojit."/>
-                <Button Content="Zavřít" Width="80" Padding="0,3" Margin="8,0,0,0" IsCancel="True"/>
+                <Button Content="{DynamicResource Cr_Use}" Padding="10,3" IsDefault="True" Click="UseButton_Click"
+                        ToolTip="{DynamicResource Cr_UseTip}"/>
+                <Button Content="{DynamicResource Cr_Close}" Width="80" Padding="0,3" Margin="8,0,0,0" IsCancel="True"/>
             </StackPanel>
         </StackPanel>
     </StackPanel>
