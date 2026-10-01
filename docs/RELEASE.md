@@ -94,8 +94,9 @@ každý push ho do minuty aktualizuje).
    podepsaný certifikátem): **Další informace → Přesto spustit**. Instaluje se jen pro tvůj účet do
    `%LocalAppData%\Programs\NewUOAM`, bez práv správce, se zástupcem ve Startu (a na ploše, když ho
    zaškrtneš). U automatických aktualizací se upozornění už neopakuje.
-3. Odinstalace: Nastavení Windows > Aplikace > new UOAM. Nastavení a markery v
-   `%LocalAppData%\NewUOAM` zůstanou.
+3. Odinstalace: Nastavení Windows > Aplikace > new UOAM. Smaže jen soubory aplikace (podle
+   `NewUOAM.files`). Nastavení a markery v `%LocalAppData%\NewUOAM`, markery ve vlastních složkách
+   i cokoli, co si hráč sám dal do složky mapy, zůstanou.
 
 Bez instalátoru: zip `NewUOAM-<verze>-win-x64.zip` z téže stránky rozbal kamkoli, kam se dá
 zapisovat (**ne** `Program Files`), a spusť `NewUOAM\NewUOAM.App.exe`.

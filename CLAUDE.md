@@ -27,7 +27,7 @@ has a detailed section further down - this list is just the map of what exists.
 | Map chat shown inside the UO client (UOAssist API via Orion Assistant) | done, verified live | "Map chat inside the UO client" |
 | In-game commands `-c`, `-c name>text`, `-panic`, `-unpanic` (UOAssist ADD_CMD, bridge process) | done, verified with simulated OA input; server deployed 2026-09-25 (live test 20/20) | "In-game commands" |
 | Track reports `-t name, name` + `TrackPlayers.oajs` + track map window | done 2026-09-30, loopback 11/11 + real app with a local relay; relay deployed 2026-09-30 (live 6/6); script's first live run pending | "Track reports (-t)" |
-| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; repo public since 2026-10-01, **v1.0.1 released** (live feed + zip verified) | "Self-update (player package)" + `docs/RELEASE.md` |
+| Player package + self-update (signed feed on GitHub Releases, in-place file swap) | done 2026-10-01, unit 21/21 + E2E 1.0.0→1.0.1 against a local server; repo public since 2026-10-01, **v1.0.2 released** with installer (live feed, zip and setup verified) | "Self-update (player package)" + `docs/RELEASE.md` |
 
 Open items: see "Watch list" and "Known follow-up work" at the bottom. **On a new machine, read `HANDOVER.md`
 first** (Czech handover written 2026-09-24 when the user moved to a second PC). It has the
@@ -1666,12 +1666,19 @@ or before changing `AppSettings`.
   `Czech.isl`) out of the same folder as the zip, `NewUOAM.files` included. Per-user install to
   `%LocalAppData%\Programs\NewUOAM`, `PrivilegesRequired=lowest` (the self-update must be able to
   write there), Start-menu shortcut + optional desktop one, `CloseApplications`, post-install launch
-  via `shellexec` (so the app's own UAC relaunch works). `[UninstallDelete]` removes the whole app
-  folder (files a self-update added later, `*.old-update`), never `%LocalAppData%\NewUOAM`. The
-  asset name is version-less, so `releases/latest/download/NewUOAM-Setup.exe` is a stable link.
+  via `shellexec` (so the app's own UAC relaunch works). **Uninstall deletes only the package's
+  files**: the `[Code]` section reads `{app}\NewUOAM.files` (kept current by self-updates, so it
+  also covers files a later version added) and deletes each listed file plus its `.old-update`.
+  The 1.0.2 installer as first built wiped the whole `{app}` folder (`[UninstallDelete]
+  filesandordirs`). The user asked whether uninstall could delete markers, and a player keeping
+  marker files in the app folder would have lost them, so it was changed the same day. Never
+  `%LocalAppData%\NewUOAM`. The asset name is version-less, so
+  `releases/latest/download/NewUOAM-Setup.exe` is a stable link.
   Verified: silent install into a scratch dir (465 files, Start-menu entry, Apps entry "new UOAM
-  1.0.1"), then silent uninstall (folder incl. a planted `.old-update`, shortcut and Apps entry
-  gone, settings untouched). App icon `src/NewUOAM.App/Assets/app.ico` (`ApplicationIcon`; also
+  1.0.1"), then silent uninstall (shortcut and Apps entry gone, settings untouched). For the
+  package-files-only uninstall: planted `DP Mesta.map`, `moje markery\stara uoam.map` and
+  `Assets\MapIcons\MOJE.png` survived. All 465 package files, two `.old-update` backups and a file
+  "added by an update" (appended to `NewUOAM.files`) were removed. App icon `src/NewUOAM.App/Assets/app.ico` (`ApplicationIcon`; also
   `docs/img/icon.png`) is drawn by `tools/Release/make-icon.ps1`. Main window title shows the version.
   The web is `docs/index.html` (single file, Czech: features, install, first run, controls,
   in-game commands, privacy, FAQ), served by GitHub Pages from `main` `/docs` (`docs/.nojekyll`,

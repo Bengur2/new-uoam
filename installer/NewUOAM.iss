@@ -5,7 +5,8 @@
 ;
 ; Per-user install into %LocalAppData%\Programs\NewUOAM, no admin needed: the map updates itself
 ; in place (docs/RELEASE.md), so its folder must stay writable for the player. Settings and
-; markers live in %LocalAppData%\NewUOAM and are never touched, not even by the uninstaller.
+; markers live in %LocalAppData%\NewUOAM (or the player's own folders) and are never touched, not
+; even by the uninstaller, which deletes only the package's own files (see [Code]).
 ; ASCII only: the Czech UI texts come from Inno's own Czech.isl.
 
 #ifndef AppVersion
@@ -54,6 +55,31 @@ Name: "{autodesktop}\new UOAM"; Filename: "{app}\NewUOAM.App.exe"; Tasks: deskto
 ; shellexec: the map asks for admin rights itself (UAC), which a plain CreateProcess can't show.
 Filename: "{app}\NewUOAM.App.exe"; Description: "{cm:LaunchProgram,new UOAM}"; Flags: nowait postinstall skipifsilent shellexec
 
-[UninstallDelete]
-; Files a self-update added after installation, and *.old-update leftovers.
-Type: filesandordirs; Name: "{app}"
+[Code]
+// Uninstall removes exactly the current package's files (NewUOAM.files, which a self-update keeps
+// up to date) and their *.old-update leftovers, never the whole folder: a player may keep their own
+// files there (e.g. marker files with the markers folder pointed at it), and those must survive.
+// Inno then removes the folders it created if they ended up empty.
+procedure DeletePackageFiles();
+var
+  Lines: TArrayOfString;
+  I: Integer;
+  AppDir, Rel, Path: String;
+begin
+  AppDir := ExpandConstant('{app}');
+  if not LoadStringsFromFile(AppDir + '\NewUOAM.files', Lines) then Exit;
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    Rel := Trim(Lines[I]);
+    // Same rule as PackageInstaller.ReadFileList: relative paths inside the app folder only.
+    if (Rel = '') or (Pos('..', Rel) > 0) or (Pos(':', Rel) > 0) or (Copy(Rel, 1, 1) = '\') then Continue;
+    Path := AppDir + '\' + Rel;
+    DeleteFile(Path);
+    DeleteFile(Path + '.old-update');
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then DeletePackageFiles();
+end;
