@@ -34,7 +34,7 @@ Markery a nastavení zůstanou. Vydávání verzí a pravidla kompatibility jsou
 - `src/NewUOAM.Positioning` — `IPositionProvider` abstrakce + tři varianty zdroje pozice hráče.
 - `src/NewUOAM.App` — WPF aplikace (vykreslení mapy, ovládání, live pozice).
 - `src/NewUOAM.MemoryScanner` — interaktivní nástroj na živé hledání offsetů v paměti hry (Cheat
-  Engine styl), použitý k reálnému nalezení offsetů pro Variantu B2 (viz níže i CLAUDE.md).
+  Engine styl), použitý k reálnému nalezení offsetů pro Variantu B2 (viz níže i dev-notes/positioning.md).
 - `src/NewUOAM.RelayServer` — samostatný konzolový relay server pro multiplayer (viz níže).
   Nezávislý na `NewUOAM.App`, jede jako vlastní proces - buď lokálně, nebo na VPS.
 - `src/NewUOAM.UoaBridge` — malý pomocný proces pro příkazy psané ve hře (`-c`, `-panic`, viz
@@ -63,6 +63,7 @@ panelu nebo stavového řádku, i když se pozicují blízko okraje.
 | A — Orion script + UDP | **Hotovo, v UI skryté** (od 24. 9. 2026, backend zůstává) | `PositionFeed.oajs` běží v OrionUO, čte `Player.X/Y/Z/Map` a posílá UDP na `127.0.0.1:27974` | Skript běží v procesu klienta (oficiální OrionUO API, ne raw injection) |
 | B1 — Packet proxy | **Odloženo** (funkční kód, UI vypnuté) — viz níže | Lokální proxy mezi `client.exe` a serverem; přepíše jen login-redirect packet (`0x8C`), zbytek jen čte, nikdy nemění | Žádné — nic se neinjektuje do klienta, chyba v parsování nanejvýš přestane hlásit pozici |
 | B2 — Process memory | **Hotovo, funkční (živě ověřeno)** | `ReadProcessMemory` z `OrionUO64.exe` přes stabilní ukazatel nalezený živou seancí přes `NewUOAM.MemoryScanner` | Žádné (jen čtení zvenčí), ale křehké na aktualizace klienta |
+| B3 — UOAssist API (Razor) | **Hotovo** (11. 10. 2026, ověřeno na Endor Revived) | Klient s Razorem (ClassicUO, např. `EndorRevived.exe`, libovolná složka): mapa se 20× za sekundu ptá Razoru na pozici (`GET_COORDS`), facet hlásí Razor při změně (`MAP_INFO`). Bez Z. | Žádné - jen zprávy oknu Razoru, žádné čtení paměti |
 
 **B1 živě otestováno proti Dark Paradise (Sphere) — funkční blokátor nalezen, ne bug:**
 login-hop je čitelný plaintext (potvrzeno hex dumpem: `0xEF` login seed, doslova jméno účtu
@@ -105,7 +106,7 @@ spustit** (Orion nenačte změnu na disku do už běžícího skriptu automatick
 
 Na rozdíl od Varianty A (čeká na UDP pakety od skriptu) appka čte pozici přímo z paměti hry
 50× za sekundu bez závislosti na jakémkoliv Orion skriptu. Cesta k datům (nalezená živou
-seancí 2026-09-23, viz CLAUDE.md pro celý postup):
+seancí 2026-09-23, viz dev-notes/positioning.md pro celý postup):
 `OrionUO64.exe (základ modulu) + 0x3796EF8` → ukazatel → `+0x28` = X, `+0x2C` = Y, `+0x41` = Z.
 
 **Známá omezení:**
@@ -129,7 +130,7 @@ je potřeba znovu najít offsety živou seancí:
 dotnet run --project src/NewUOAM.MemoryScanner
 ```
 
-Postup uvnitř nástroje (podrobně viz CLAUDE.md):
+Postup uvnitř nástroje (podrobně viz dev-notes/positioning.md):
 1. `attach OrionUO64` — připojí se k běžícímu klientovi.
 2. `scan <tvoje X>` — první scan podle aktuální X souřadnice.
 3. Popojdi kousek, `next <nová X>` — zúží kandidáty. Opakuj, dokud nezůstane málo kandidátů.
@@ -146,7 +147,7 @@ Postup uvnitř nástroje (podrobně viz CLAUDE.md):
 2. V `MainWindow.xaml.cs` odkomentovat `StartProxyButton_Click`/`StopProxyButton_Click`/
    `ClearLogButton_Click` a `_proxyProvider` pole, vrátit `Log()` na verzi co píše i do
    `LogTextBox` (viz git historie/komentáře na místě).
-3. Postup spuštění a co appka hlásí je zdokumentováno v `CLAUDE.md` (sekce B1) — adresa
+3. Postup spuštění a co appka hlásí je zdokumentováno v `dev-notes/positioning.md` (sekce B1) — adresa
    reálného serveru `178.238.38.119:2593` je vytažená z `C:\Orion Launcher\Config\Profiles.xml`
    (profil `DP` → tvůj účet), lokální login port defaultně `2593`.
 
@@ -335,7 +336,7 @@ fungují beze změny.
 - **Název při najetí myší**: každá ikona zobrazí svoje jméno při najetí myší — vlastní
   implementace (`MarkerHoverLabel`), ne nativní WPF tooltip. Nativní tooltip měl reálný problém:
   appka ho při aktivním live UDP feedu (pozice každých ~20 ms) nikdy nestihla zobrazit, ať jsi
-  čekal sebedéle (viz CLAUDE.md, "Dispatcher-starvation" bug). Vlastní řešení na tenhle problém
+  čekal sebedéle (viz dev-notes/markers.md, "Dispatcher-starvation" bug). Vlastní řešení na tenhle problém
   vůbec nenaráží.
 - Markery se zobrazují jen pro facet, který appka zrovna má načtený (stejné pravidlo jako u
   ostatních hráčů). DP shardí marker soubory (`DP Mesta.map`, `DP Dungy.map`) měly původně skoro
@@ -484,8 +485,11 @@ i prostorově to sedí (`tools/UopProbe`).
   encryption" vrstva na herním serveru (ne login serveru). Facet se po loginu pozná ze
   šířky/výšky mapy v `0x1B` (match proti `FacetInfo.Known`) — změna facetu za běhu
   (moongate/sacred journey) zatím není zachycena (chtělo by to `0xBF`/`0x08`).
-- Varianta B2 — facet/mapa je natvrdo Felucca (viz sekce výše), pro shard s víc mapami by
-  potřebovala vlastní offset nalezený stejnou živou seancí.
+- Varianta B2 — facet/mapa začíná na Felucca (viz sekce výše), jinou mapu jde nastavit ručně
+  (pravé tlačítko → World). Automaticky by to chtělo vlastní offset nalezený živou seancí.
+- Varianta B3 (Razor) — když se mapa zapne až u postavy, která už je v jiném světě než Felucca,
+  ukazuje Felucca do příští změny světa nebo relogu (Razor se na facet nedá zeptat). Řeší se
+  ručně přes World.
 - Místnosti (rooms) — admin heslo se zadává jako obyčejný argument příkazové řádky (vidí ho
   kdokoliv s přístupem na VPS).
 - Multiplayer — po pádu appky (bez řádného odpojení) je stejné jméno v místnosti blokované až 15 s.

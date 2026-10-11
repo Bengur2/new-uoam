@@ -113,4 +113,4 @@ aktualizuje stejně. Na PC, ze kterého se vydává, musí být Inno Setup
 `release.ps1 -NotesFile … -PackageBaseUrl http://localhost:27999/` sestaví balíček, který se stahuje
 z lokálního serveru, a mapa spuštěná s `--update-feed http://localhost:27999/update.json` ho
 nabídne (podpis se kontroluje stejně). Takhle byla aktualizace 1.0.0 → 1.0.1 ověřená 2026-10-01
-(viz CLAUDE.md, „Self-update“).
+(viz dev-notes/self-update.md, „Self-update“).

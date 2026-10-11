@@ -237,7 +237,7 @@ public partial class MainWindow : Window
         _uoaCommands.CommandReceived += OnGameCommand;
         // A map tracking a client via B2 takes only that client's commands (another map on this
         // PC may belong to the other one); without B2 it takes any.
-        _uoaCommands.AcceptsClient = pid => (_b2Provider as ProcessMemoryPositionProvider)?.ProcessId is not { } tracked || tracked == pid;
+        _uoaCommands.AcceptsClient = pid => (_b2Provider as IClientPositionProvider)?.ProcessId is not { } tracked || tracked == pid;
         _uoaCommands.Problem += Log;
         _commandBridgeTimer.Tick += (_, _) => EnsureCommandBridge();
         _commandBridgeTimer.Start();
@@ -415,6 +415,7 @@ public partial class MainWindow : Window
             var clientData = new UoClientData(dir);
             _drawnStaticsView = CurrentStaticsView;
             _clientData = clientData;
+            ResolveInGameHues(clientData);
 
             if (!clientData.TryGetFacet(0, out var facet))
             {
@@ -500,7 +501,9 @@ public partial class MainWindow : Window
     // client is picked up by the next scan (within 2s). Memory reading itself is unchanged: one
     // client at a time, 3 small reads every 50ms. ----
 
-    private sealed record B2ProcessItem(int Pid, string Display);
+    /// <param name="ViaUoAssist">A client read through its assistant's UOAssist API (Razor in a
+    /// ClassicUO client, UoAssistPositionProvider) instead of OrionUO64.exe's memory.</param>
+    private sealed record B2ProcessItem(int Pid, string Display, bool ViaUoAssist = false);
 
     private static readonly TimeSpan ClientScanInterval = TimeSpan.FromSeconds(2);
     private readonly DispatcherTimer _clientScanTimer = new() { Interval = ClientScanInterval };
@@ -512,7 +515,7 @@ public partial class MainWindow : Window
     private bool _switchingClient;
     private bool _scanningClients;
 
-    private int? TrackedPid => (_b2Provider as ProcessMemoryPositionProvider)?.ProcessId;
+    private int? TrackedPid => (_b2Provider as IClientPositionProvider)?.ProcessId;
 
     private void StartClientTracking()
     {
@@ -530,8 +533,11 @@ public partial class MainWindow : Window
         try
         {
             // Off the UI thread: the scan is cheap, but it then can't delay a map frame at all.
+            static string Display(int pid, string title) => string.IsNullOrWhiteSpace(title) ? $"PID {pid}" : $"{title} (PID {pid})";
             items = await Task.Run(() => ProcessMemoryPositionProvider.FindCandidateProcesses()
-                .Select(c => new B2ProcessItem(c.ProcessId, string.IsNullOrWhiteSpace(c.WindowTitle) ? $"PID {c.ProcessId}" : $"{c.WindowTitle} (PID {c.ProcessId})"))
+                .Select(c => new B2ProcessItem(c.ProcessId, Display(c.ProcessId, c.WindowTitle)))
+                .Concat(UoAssistPositionProvider.FindCandidateProcesses()
+                    .Select(c => new B2ProcessItem(c.ProcessId, Display(c.ProcessId, c.WindowTitle), ViaUoAssist: true)))
                 .ToList());
         }
         finally
@@ -612,7 +618,8 @@ public partial class MainWindow : Window
             // previous client's character.
             ShowNoPosition("čekám na pozici");
 
-            var provider = new ProcessMemoryPositionProvider(p);
+            bool viaUoAssist = _clientItems.FirstOrDefault(i => i.Pid == p)?.ViaUoAssist ?? false;
+            IClientPositionProvider provider = viaUoAssist ? new UoAssistPositionProvider(p) : new ProcessMemoryPositionProvider(p);
             provider.PositionChanged += OnPositionChanged;
             provider.StatusMessage += (_, msg) => Dispatcher.Invoke(() => Log(msg));
             try
@@ -623,8 +630,8 @@ public partial class MainWindow : Window
             {
                 provider.Dispose();
                 _failedClientPids.Add(p);
-                Log($"Nepodařilo se číst paměť klienta PID {p}: {ex.Message}"
-                    + (App.IsAdministrator ? "" : " Spusť mapu jako správce."));
+                Log((viaUoAssist ? $"Nepodařilo se číst pozici klienta PID {p} přes UOAssist: " : $"Nepodařilo se číst paměť klienta PID {p}: ")
+                    + ex.Message + (App.IsAdministrator ? "" : " Spusť mapu jako správce."));
                 ShowNoPosition("žádný klient");
                 return;
             }
@@ -1172,7 +1179,7 @@ public partial class MainWindow : Window
     private void ShowInGame(string text, bool overhead = false, int? targetPid = null, bool force = false, ushort? hue = null)
     {
         if (!force && ShowChatInGameCheckBox.IsChecked != true) return;
-        int? trackedPid = targetPid ?? (_b2Provider as ProcessMemoryPositionProvider)?.ProcessId;
+        int? trackedPid = targetPid ?? (_b2Provider as IClientPositionProvider)?.ProcessId;
 
         _inGameSendChain = _inGameSendChain.ContinueWith(_ =>
         {
@@ -1184,14 +1191,14 @@ public partial class MainWindow : Window
             }
             IntPtr hwnd = pid is { } p ? UoAssistTextSender.FindWindowForProcess(p) : IntPtr.Zero;
             bool ok = overhead
-                ? UoAssistTextSender.DisplayOverheadText(hwnd, text, hue ?? UoAssistTextSender.SharedMarkerHue)
-                : UoAssistTextSender.DisplaySystemText(hwnd, text, hue ?? UoAssistTextSender.DefaultHue);
+                ? UoAssistTextSender.DisplayOverheadText(hwnd, text, hue ?? _sharedMarkerHue)
+                : UoAssistTextSender.DisplaySystemText(hwnd, text, hue ?? _chatHue);
             if (!ok && !_inGameUnavailableLogged)
             {
                 _inGameUnavailableLogged = true;
                 Dispatcher.BeginInvoke(() => Log(trackedPid is null
                     ? "Chat ve hře: nevím, do kterého klienta psát - mapa zatím nesleduje žádný klient."
-                    : "Chat ve hře: sledovaný klient nenabízí rozhraní UOAssist (běží v něm Orion Assistant a je přihlášený?)."));
+                    : "Chat ve hře: sledovaný klient nenabízí rozhraní UOAssist (běží v něm Orion Assistant nebo Razor a je přihlášený?)."));
             }
             else if (ok) _inGameUnavailableLogged = false;
         }, TaskScheduler.Default);
@@ -1996,6 +2003,7 @@ public partial class MainWindow : Window
         foreach (var item in BuildDropMarkerMenuItems(_contextMenuWorld)) menu.Items.Add(item);
         menu.Items.Add(labelItem);
         menu.Items.Add(goToItem);
+        if (BuildWorldMenuItem() is { } worldItem) menu.Items.Add(worldItem);
         if (_relayClient is { } client)
         {
             // Old UOAM's Panic! toggle; also "-panic"/"-unpanic" in the game.
@@ -2012,6 +2020,49 @@ public partial class MainWindow : Window
         }
         menu.IsOpen = true;
         e.Handled = true;
+    }
+
+    // ---- "World": the facet set by hand (user's request 2026-10-11). Razor only reports a facet
+    // when it changes, so a map started while the character is already elsewhere shows Felucca, and
+    // B2 has no facet source at all. Picking a world tells the tracked client's provider that the
+    // character is there (IClientPositionProvider.OverrideFacet): the map, its markers and the
+    // position sent to the room all switch, until the client reports a facet change itself.
+    // Without a tracked client it only switches the view. ----
+
+    private MenuItem? BuildWorldMenuItem()
+    {
+        if (_clientData is not { } clientData) return null;
+        var world = new MenuItem { Header = "World" };
+        foreach (int index in clientData.DiscoverFacetIndices())
+        {
+            if (!clientData.TryGetFacet(index, out var facet)) continue;
+            int captured = index;
+            var item = new MenuItem { Header = new TextBlock { Text = facet.Name }, IsCheckable = true, IsChecked = index == _currentFacetIndex };
+            item.Click += (_, _) => SetWorld(captured);
+            world.Items.Add(item);
+        }
+        return world.Items.Count > 0 ? world : null;
+    }
+
+    private void SetWorld(int facetIndex)
+    {
+        if (_clientData is null || !_clientData.TryGetFacet(facetIndex, out var facet)) return;
+        if (_b2Provider is IClientPositionProvider provider)
+            provider.OverrideFacet(facetIndex); // its next update moves the player marker (ShowLocalPosition)
+        if (facetIndex == _currentFacetIndex) return;
+
+        // Switch the view right away (also the only effect without a client); keep the view inside
+        // the new facet, which can be smaller.
+        _currentFacet = facet;
+        _currentFacetIndex = facetIndex;
+        _viewX = Math.Clamp(_viewX, 0, facet.WidthTiles - 1);
+        _viewY = Math.Clamp(_viewY, 0, facet.HeightTiles - 1);
+        _centerX = (int)Math.Round(_viewX);
+        _centerY = (int)Math.Round(_viewY);
+        if (ShowCoordinatesCheckBox.IsChecked == true && _markerX is int mx && _markerY is int my)
+            CoordinatesOverlay.Text = $"{facet.Name} {mx},{my}";
+        Log($"Mapa přepnuta na {facet.Name} (facet {facetIndex}).");
+        RequestRedraw();
     }
 
     // ---- "Drop or Pickup Marker" (local) and "Drop or Pick Up Shared Marker" (relay room). A
@@ -2156,7 +2207,7 @@ public partial class MainWindow : Window
     /// one running) has a command bridge. Cheap when it already has one (a mutex check).</summary>
     private void EnsureCommandBridge()
     {
-        int? pid = (_b2Provider as ProcessMemoryPositionProvider)?.ProcessId;
+        int? pid = (_b2Provider as IClientPositionProvider)?.ProcessId;
         if (pid is null)
         {
             var all = UoAssistTextSender.FindAllProcessIds();
@@ -2282,6 +2333,27 @@ public partial class MainWindow : Window
     // Red over the head for "PANIC! ...": 0x0021, the user's pick from a live comparison with
     // 0x22/0x25/0x26. The turn-off lines keep the default color.
     private const ushort PanicHue = 0x0021;
+
+    // In-game text hues actually sent: the constants above/in UoAssistTextSender as long as the
+    // loaded client's hues.mul has a proper ramp for them, else the closest usable hue (Endor's
+    // 0x05BA is junk and showed the chat black, 2026-10-11). Intended colors = the hues' look in
+    // Dark Paradise's hues.mul, where they were picked. Updated by ResolveInGameHues on map load.
+    private ushort _chatHue = UoAssistTextSender.DefaultHue;
+    private ushort _sharedMarkerHue = UoAssistTextSender.SharedMarkerHue;
+    private ushort _panicHue = PanicHue;
+    private static readonly Rgb ChatHueColor = new(57, 213, 197);
+    private static readonly Rgb SharedMarkerHueColor = new(41, 180, 197);
+    private static readonly Rgb PanicHueColor = new(197, 0, 41);
+
+    private void ResolveInGameHues(UoClientData clientData)
+    {
+        if (clientData.Hues is not { } hues) return;
+        _chatHue = hues.Resolve(UoAssistTextSender.DefaultHue, ChatHueColor);
+        _sharedMarkerHue = hues.Resolve(UoAssistTextSender.SharedMarkerHue, SharedMarkerHueColor);
+        _panicHue = hues.Resolve(PanicHue, PanicHueColor);
+        if (_chatHue != UoAssistTextSender.DefaultHue || _sharedMarkerHue != UoAssistTextSender.SharedMarkerHue || _panicHue != PanicHue)
+            Log($"Barvy textu ve hře upravené pro hues.mul tohoto klienta: chat 0x{_chatHue:X4}, marker 0x{_sharedMarkerHue:X4}, panic 0x{_panicHue:X4}.");
+    }
     private const int PanicSoundIntervalMs = 3000;
 
     /// <summary>Space over the map / the map menu: turns the room's panic off if there is one
@@ -2342,7 +2414,7 @@ public partial class MainWindow : Window
             // Over the player's head (user's request). Your own panic's lines always show - they
             // answer your own action (or tell you someone else ended your panic).
             ShowInGame(mine && e.Panicker is not null ? "PANIC zapnut - ostatni te vidi na mape" : text, overhead: true, force: mine,
-                       hue: e.Panicker is not null ? PanicHue : null);
+                       hue: e.Panicker is not null ? _panicHue : null);
         }));
     }
 
@@ -2372,7 +2444,7 @@ public partial class MainWindow : Window
         timer.Tick += (_, _) =>
         {
             foreach (string name in _panicPlayers.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
-                ShowInGame(PanicText(name), overhead: true, hue: PanicHue);
+                ShowInGame(PanicText(name), overhead: true, hue: _panicHue);
         };
         return timer;
     }
@@ -3019,7 +3091,7 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
             // A client the map just switched away from can still have an update queued.
-            if (sender is ProcessMemoryPositionProvider && !ReferenceEquals(sender, _b2Provider)) return;
+            if (sender is IClientPositionProvider && !ReferenceEquals(sender, _b2Provider)) return;
 
             PositionText.Text = $"X: {update.X}  Y: {update.Y}  Z: {update.Z}  Map: {update.Map}" +
                                  (update.CharacterName is null ? "" : $"  ({update.CharacterName})");

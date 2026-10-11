@@ -180,6 +180,27 @@ public sealed class UoClientData : IDisposable
         }
     }
 
+    private HueTable? _hues;
+    private bool _huesLoaded;
+
+    /// <summary>hues.mul of this client (null when missing or unreadable) - see HueTable for why
+    /// in-game text hues are checked against it.</summary>
+    public HueTable? Hues
+    {
+        get
+        {
+            if (_huesLoaded) return _hues;
+            _huesLoaded = true;
+            try
+            {
+                if (FindFile("hues.mul") is { } path) _hues = HueTable.Load(path);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            return _hues;
+        }
+    }
+
     private string? FindFile(string fileName)
     {
         string direct = Path.Combine(ClientDirectory, fileName);

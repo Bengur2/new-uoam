@@ -22,7 +22,7 @@ namespace NewUOAM.Positioning.Providers;
 /// not `client.exe` - OrionUO is a full replacement client for this user's setup, not just a
 /// script host layered on the original client.
 /// </summary>
-public sealed class ProcessMemoryPositionProvider : IPositionProvider
+public sealed class ProcessMemoryPositionProvider : IClientPositionProvider
 {
     public const string TargetModuleName = "OrionUO64.exe";
 
@@ -37,10 +37,12 @@ public sealed class ProcessMemoryPositionProvider : IPositionProvider
     private const int NullPointerWarningMs = 3000;
 
     // No confirmed offset for map/facet yet - this user's shard (Dark Paradise) only actually runs
-    // Felucca, so this is a real, deliberate, documented limitation rather than an oversight.
-    // Revisit (another MemoryScanner session, changing facet to see what changes) if ever used
-    // somewhere with more than one facet.
-    private const int HardcodedMap = 0;
+    // Felucca, so it starts at 0, a real, deliberate, documented limitation rather than an
+    // oversight. The World menu can set it by hand (OverrideFacet). Revisit (another MemoryScanner
+    // session, changing facet to see what changes) if ever used somewhere with more than one facet.
+    private volatile int _facet;
+
+    public void OverrideFacet(int facet) => _facet = facet; // the poll loop re-emits on the change
 
     private const int PollIntervalMs = 50;
 
@@ -189,7 +191,7 @@ public sealed class ProcessMemoryPositionProvider : IPositionProvider
 
     private async Task PollLoopAsync(IntPtr moduleBase, int? pointerOffset, CancellationToken ct)
     {
-        int? lastX = null, lastY = null;
+        int? lastX = null, lastY = null, lastMap = null;
         sbyte? lastZ = null;
         long nextLocateTicks = 0;
         bool reportedLocateFailure = false;
@@ -250,10 +252,11 @@ public sealed class ProcessMemoryPositionProvider : IPositionProvider
                     int y = ReadInt32(IntPtr.Add(objectBase, OffsetY));
                     sbyte z = ReadSByte(IntPtr.Add(objectBase, OffsetZ));
 
-                    if (x != lastX || y != lastY || z != lastZ)
+                    int map = _facet;
+                    if (x != lastX || y != lastY || z != lastZ || map != lastMap)
                     {
-                        lastX = x; lastY = y; lastZ = z;
-                        PositionChanged?.Invoke(this, PositionUpdate.Now(x, y, z, HardcodedMap, _characterName));
+                        lastX = x; lastY = y; lastZ = z; lastMap = map;
+                        PositionChanged?.Invoke(this, PositionUpdate.Now(x, y, z, map, _characterName));
                     }
                 }
             }

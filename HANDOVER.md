@@ -1,7 +1,7 @@
 # Předávací protokol — new UOAM (stav k 24. 9. 2026)
 
 Tento dokument je pro pokračování práce na jiném PC (a pro Clauda, který tam projekt otevře).
-Podrobná technická dokumentace je v `CLAUDE.md` (hlavně tabulka „Project status at a glance“
+Podrobná technická dokumentace je v `dev-notes/`, rozcestník je `CLAUDE.md` (hlavně tabulka „Project status and where the details are“
 nahoře), uživatelský návod je v `README.md`. Tady je to podstatné na jednom místě.
 
 ## 1. Co projekt je
@@ -46,7 +46,7 @@ v1.0.35.1 (pozor, `C:\Orion Launcher` je tam taky, ale je to jiná verze a nepou
 postavy je stejná, posunul se jen globální ukazatel (`+0x3793EE8`). B2 teď pozná známé buildy
 podle hashe exe a u **neznámého buildu najde adresu sama** (postava musí být přihlášená). Stavový
 řádek napíše verzi, případně automaticky nalezenou adresu, a upozorní na prázdný ukazatel.
-Podrobnosti v `CLAUDE.md` (sekce B2, „Multi-build support“). Níže je původní postup, který se
+Podrobnosti v `dev-notes/positioning.md` (sekce B2, „Multi-build support“). Níže je původní postup, který se
 hodí, kdyby se v nové verzi změnila i struktura postavy.
 
 Na tomto PC funguje s tímto klientem:
@@ -65,7 +65,7 @@ Postup na druhém PC:
 
 1. **Porovnej exe.** V PowerShellu: `Get-FileHash "C:\cesta\k\OrionUO64.exe"` a velikost souboru.
    Když se hash liší → jiný build → adresy nesedí. Oprava = nová hledací seance nástrojem
-   `NewUOAM.MemoryScanner` (postup v `CLAUDE.md`, sekce „NewUOAM.MemoryScanner“ a „B2“), pak
+   `NewUOAM.MemoryScanner` (postup v `dev-notes/positioning.md`, sekce „NewUOAM.MemoryScanner“ a „B2“), pak
    přepsat konstanty v `src/NewUOAM.Positioning/Providers/ProcessMemoryPositionProvider.cs`.
    Hlavní podezřelý: B2 v tom případě **nehlásí žádnou chybu**, jen se poloha nemění (čtení
    ukazatele vrátí nulu a smyčka potichu čeká).
@@ -129,14 +129,14 @@ klient).
 - **Místnosti:** hráči si je zakládají sami (Online > Připojit k mapě > Založit novou místnost…,
   heslo vygeneruje server). Admin… ukáže všechny místnosti, umí je hromadně mazat a vypnout
   zakládání. Nepoužívané hráčské místnosti se po 3 měsících smažou samy.
-- Poslední vydaná verze: **1.0.3** (1. 10. 2026). Tvoje instalace pro testy je v
+- Poslední vydaná verze: **1.0.6** (11. 10. 2026). Tvoje instalace pro testy je v
   `%LocalAppData%\Programs\NewUOAM` (zástupce „new UOAM“ na ploše).
 
 ## 7. Relay server (běží, není potřeba nic dělat)
 
 - `89.168.122.175:27980` UDP, Oracle Cloud Always Free, Ubuntu, služba `uoam-relay` (systemd).
 - Nasazená verze je aktuální (naposledy 1. 10. 2026: zakládání místností hráči a nový admin). Na VM
-  zůstala záloha `NewUOAM.RelayServer.prev` a `rooms.json.bak-20261001`. Postup nasazení nové verze: `CLAUDE.md`,
+  zůstala záloha `NewUOAM.RelayServer.prev` a `rooms.json.bak-20261001`. Postup nasazení nové verze: `dev-notes/relay.md`,
   sekce „Deployed relay instance“ (publish s **lomítky** `publish/relay`, upload pod dočasným
   jménem, `mv`, restart služby).
 - **SSH klíč** `ssh-key-2026-09-22.key`: na hlavním PC v `C:\Users\<uživatel>\Downloads\`, na
